@@ -1,3 +1,30 @@
+## v1.0.0
+
+[v0.8.2...v1.0.0](https://github.com/Jannchie/shields.rs/compare/v0.8.2...v1.0.0)
+
+### :memo: Documentation
+
+- **readme**: update usage, features, and benchmarks - By [Jianqi Pan](mailto:jannchie@gmail.com) in [b7c50e6](https://github.com/Jannchie/shields.rs/commit/b7c50e6)
+
+### :wrench: Chores
+
+- **ci**: update rust setup action in workflow - By [Jianqi Pan](mailto:jannchie@gmail.com) in [bc5e0f5](https://github.com/Jannchie/shields.rs/commit/bc5e0f5)
+- **deps**: update lock files - By [Jianqi Pan](mailto:jannchie@gmail.com) in [a020e95](https://github.com/Jannchie/shields.rs/commit/a020e95)
+- **metadata**: update repository url - By [Jianqi Pan](mailto:jannchie@gmail.com) in [d647c38](https://github.com/Jannchie/shields.rs/commit/d647c38)
+
+## v0.8.2
+
+[v0.8.1...v0.8.2](https://github.com/Jannchie/shields.rs/compare/v0.8.1...v0.8.2)
+
+### :memo: Documentation
+
+- **changelog**: add changelog for v0.8.1 release - By [Jianqi Pan](mailto:jannchie@gmail.com) in [a169d5b](https://github.com/Jannchie/shields.rs/commit/a169d5b)
+- **readme**: add badges for crates.io and deps - By [Jianqi Pan](mailto:jannchie@gmail.com) in [0b89b67](https://github.com/Jannchie/shields.rs/commit/0b89b67)
+
+### :wrench: Chores
+
+- **metadata**: update homepage url - By [Jianqi Pan](mailto:jannchie@gmail.com) in [9f0b29b](https://github.com/Jannchie/shields.rs/commit/9f0b29b)
+
 ## v0.8.1
 
 [v0.8.0...v0.8.1](https://github.com/Jannchie/shields.rs/compare/v0.8.0...v0.8.1)
