@@ -1,5 +1,7 @@
 # shields.rs
 
+[![CodeTime Badge](https://img.shields.io/endpoint?style=social&color=222&url=https%3A%2F%2Fapi.codetime.dev%2Fv3%2Fusers%2Fshield%3Fuid%3D2%26project%3Dshields)](https://codetime.dev)
+
 ![Crates.io Version](https://img.shields.io/crates/v/shields)
 ![Deps.rs Crate Dependencies (latest)](https://img.shields.io/deps-rs/shields/latest)
 ![Crates.io License](https://img.shields.io/crates/l/shields)
