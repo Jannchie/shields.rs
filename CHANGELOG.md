@@ -1,3 +1,15 @@
+## v1.0.1
+
+[v1.0.0...v1.0.1](https://github.com/Jannchie/shields.rs/compare/v1.0.0...v1.0.1)
+
+### :memo: Documentation
+
+- **changelog**: add changelog for v1.0.0 release - By [Jianqi Pan](mailto:jannchie@gmail.com) in [3a09931](https://github.com/Jannchie/shields.rs/commit/3a09931)
+
+### :wrench: Chores
+
+- **deps**: bump lru and md5 versions - By [Jianqi Pan](mailto:jannchie@gmail.com) in [fb06030](https://github.com/Jannchie/shields.rs/commit/fb06030)
+
 ## v1.0.0
 
 [v0.8.2...v1.0.0](https://github.com/Jannchie/shields.rs/compare/v0.8.2...v1.0.0)
