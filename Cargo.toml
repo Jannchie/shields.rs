@@ -1,6 +1,6 @@
 [package]
 name = "shields"
-version = "1.0.1"
+version = "1.1.0"
 edition = "2024"
 authors = ["Jannchie <jannchie@gmail.com>"]
 description = "High-performance Rust badge rendering engine, compatible with shields.io"

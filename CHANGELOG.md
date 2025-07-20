@@ -1,3 +1,16 @@
+## v1.1.0
+
+v1.0.1...v1.1.0
+
+### :sparkles: Features
+
+- **badge**: support custom svg logo in badge - By [Jannchie](mailto:jannchie@gmail.com) in 360bce2
+
+### :wrench: Chores
+
+- **deps**: bump serde_json to 1.0.141 - By [Jannchie](mailto:jannchie@gmail.com) in 8dabb91
+- **deps**: bump dependencies and dev-dependencies versions - By [Jianqi Pan](mailto:jannchie@gmail.com) in c656d09
+
 ## v1.0.1
 
 [v1.0.0...v1.0.1](https://github.com/Jannchie/shields.rs/compare/v1.0.0...v1.0.1)
