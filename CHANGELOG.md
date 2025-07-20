@@ -1,3 +1,15 @@
+## v1.1.1
+
+v1.1.0...v1.1.1
+
+### :adhesive_bandage: Fixes
+
+- **badge-svg**: remove extra stroke on message bubble path && improve fill application for custom logo - By [Jannchie](mailto:jannchie@gmail.com) in 07db745
+
+### :wrench: Chores
+
+- **deps**: update dependencies lock file - By [Jannchie](mailto:jannchie@gmail.com) in 9cdade2
+
 ## v1.1.0
 
 v1.0.1...v1.1.0
