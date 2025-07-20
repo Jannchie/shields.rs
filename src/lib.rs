@@ -656,20 +656,28 @@ pub fn render_badge_svg(params: &BadgeParams) -> String {
             if logo.is_empty() {
                 ""
             } else if logo.starts_with("<svg") {
-                // If it's already an SVG string, use it directly
                 logo
             } else {
-                // Try to get SVG from simple icons
-                let svg = simpleicons::Icon::get_svg(logo);
+                // let logo_color = logo_color.unwrap_or("#555");
+                // let icon = to_svg_color(logo_color).unwrap_or("#555".to_string());
+                let icon = logo;
+                let svg = simpleicons::Icon::get_svg(icon);
                 svg.unwrap_or_default()
             }
         }
         None => "",
     };
     // 如果 logo 为 <svg 开头，则需要获取 base64 编码
-    // 通过 cargo add base64 来引入 base64 crate
     let logo = if icon_svg.starts_with("<svg") {
-        let logo_svg = icon_svg.replace("<svg", format!("<svg fill=\"{}\"", logo_color).as_str());
+        // 只检查 <svg> 标签内是否有 fill 属性，且 logo_color 不为空，则添加 fill 属性
+        let svg_tag_end = icon_svg.find('>').unwrap_or(0);
+        let svg_tag = &icon_svg[..svg_tag_end];
+        let has_fill_in_svg_tag = svg_tag.contains("fill=");
+        let logo_svg = if !has_fill_in_svg_tag && !logo_color.is_empty() {
+            icon_svg.replace("<svg", format!("<svg fill=\"{}\"", logo_color).as_str())
+        } else {
+            icon_svg.to_string()
+        };
         let base64_logo = base64::engine::general_purpose::STANDARD.encode(logo_svg);
         format!("data:image/svg+xml;base64,{}", base64_logo)
     } else {
@@ -1470,12 +1478,12 @@ mod tests {
 
     #[test]
     fn test_custom_svg_logo() {
-        let custom_svg = "<svg width=\"377\" height=\"377\" viewBox=\"0 0 377 377\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\
+        let custom_svg = "<svg width=\"377\" height=\"377\" viewBox=\"0 0 377 377\" xmlns=\"http://www.w3.org/2000/svg\">\
 <circle cx=\"188.5\" cy=\"188.5\" r=\"172.5\" fill=\"#D9D9D9\" stroke=\"#1874A8\" stroke-width=\"32\"/>\
 <circle cx=\"188.5\" cy=\"188.5\" r=\"172.5\" fill=\"#D9D9D9\" stroke=\"#1874A8\" stroke-width=\"32\"/>\
 <path d=\"M289.352 113L307.016 140.904L223.944 189.416L307.016 237.032L288.712 265.832L189 203.88V175.208L289.352 113Z\" fill=\"#2E2E2E\"/>\
 </svg>";
-        
+
         let params = BadgeParams {
             style: BadgeStyle::Flat,
             label: Some("custom"),
@@ -1487,22 +1495,26 @@ mod tests {
             logo: Some(custom_svg),
             logo_color: Some("#1874A8"),
         };
-        
+
         let svg = render_badge_svg(&params);
-        
         // Test that the badge contains expected text
         assert!(svg.contains("custom"), "Badge should contain 'custom' text");
         assert!(svg.contains("logo"), "Badge should contain 'logo' text");
-        
+
         // Test that SVG contains custom logo (base64 encoded)
-        assert!(svg.contains("data:image/svg+xml;base64,"), "SVG should contain base64 encoded custom logo");
-        
-        // Test that the logo color is applied to the custom SVG (in lowercase)
-        let encoded_svg = base64::engine::general_purpose::STANDARD.encode(
-            custom_svg.replace("<svg", &format!("<svg fill=\"{}\"", "#1874a8"))
+        assert!(
+            svg.contains("data:image/svg+xml;base64,"),
+            "SVG should contain base64 encoded custom logo"
         );
-        assert!(svg.contains(&encoded_svg), "SVG should contain custom logo with applied color");
-        
+
+        // Test that the logo color is applied to the custom SVG (in lowercase)
+        let encoded_svg = base64::engine::general_purpose::STANDARD
+            .encode(custom_svg.replace("<svg", &format!("<svg fill=\"{}\"", "#1874a8")));
+        assert!(
+            svg.contains(&encoded_svg),
+            "SVG should contain custom logo with applied color"
+        );
+
         assert!(!svg.is_empty(), "Generated SVG should not be empty");
     }
 }

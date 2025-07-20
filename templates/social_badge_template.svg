@@ -24,7 +24,7 @@
         
         
         <rect x="{{ message_bubble_notch_x }}" y="7.5" width="0.5" height="5" stroke="#fafafa" />
-        <path d="M{{ message_bubble_main_x }} 6.5 l-3 3v1 l3 3" stroke="d5d5d5" fill="#fafafa" />
+        <path d="M{{ message_bubble_main_x }} 6.5 l-3 3v1 l3 3" fill="#fafafa" />
         {% endif %}
     </g>
     
