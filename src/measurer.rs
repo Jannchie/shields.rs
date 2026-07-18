@@ -16,16 +16,16 @@
 //!
 //! See [`CharWidthMeasurer`] for details.
 
-use serde_json::Value;
-use std::collections::HashMap;
+use std::borrow::Cow;
 use std::fs;
 use std::io::{self};
 
 /// Measures character widths for a given font, for use in SVG badge layout.
 ///
 /// This struct loads a font width table (from data, JSON file, or string) and provides methods
-/// to look up the width of individual characters or entire strings. Used internally for accurate
-/// badge rendering.
+/// to look up the width of individual characters or entire strings. Widths are stored as sorted
+/// `(lower, upper, width)` code point ranges and resolved with a binary search, mirroring the
+/// upstream shields.io implementation.
 ///
 /// ## Example
 /// ```rust
@@ -36,8 +36,10 @@ use std::io::{self};
 /// assert!(width > 0.0);
 /// ```
 pub struct CharWidthMeasurer {
-    /// Lookup table: char_code -> width
-    hash_map: HashMap<u32, f64>,
+    /// Sorted, non-overlapping (lower, upper, width) code point ranges
+    ranges: Cow<'static, [(u32, u32, f64)]>,
+    /// Direct lookup fast path for ASCII code points; NaN marks "not in table"
+    ascii: [f64; 128],
     /// Width of character 'm'
     pub em_width: f64,
 }
@@ -52,6 +54,30 @@ impl CharWidthMeasurer {
     /// `true` if control character, else `false`.
     pub fn is_control_char(char_code: u32) -> bool {
         char_code <= 31 || char_code == 127
+    }
+
+    fn build(ranges: Cow<'static, [(u32, u32, f64)]>) -> Self {
+        let mut measurer = CharWidthMeasurer {
+            ranges,
+            ascii: [f64::NAN; 128],
+            em_width: 0.0,
+        };
+        for code in 0..128u32 {
+            if let Some(width) = measurer.lookup_range(code) {
+                measurer.ascii[code as usize] = width;
+            }
+        }
+        measurer.em_width = measurer.width_of("m", true);
+        measurer
+    }
+
+    /// Binary search over the sorted range table.
+    fn lookup_range(&self, char_code: u32) -> Option<f64> {
+        let idx = self
+            .ranges
+            .partition_point(|&(lower, _, _)| lower <= char_code);
+        let &(_, upper, width) = self.ranges.get(idx.checked_sub(1)?)?;
+        (char_code <= upper).then_some(width)
     }
 
     /// Creates a new measurer from a vector of (lower, upper, width) tuples.
@@ -71,20 +97,54 @@ impl CharWidthMeasurer {
     /// let measurer = CharWidthMeasurer::from_data(data);
     /// ```
     pub fn from_data(data: Vec<(u32, u32, f64)>) -> Self {
-        // Build lookup table: expand all ranges to char_code -> width
-        let mut hash_map = HashMap::new();
-        for &(lower, upper, width) in &data {
-            for code in lower..=upper {
-                hash_map.insert(code, width);
+        let mut ranges: Vec<(u32, u32, f64)> = Vec::with_capacity(data.len());
+        for new in data {
+            Self::overwrite(&mut ranges, new);
+        }
+        Self::build(Cow::Owned(ranges))
+    }
+
+    /// Creates a new measurer borrowing a static table of sorted (lower, upper, width) ranges.
+    ///
+    /// The ranges must be sorted by their lower bound and non-overlapping. Unlike
+    /// [`from_data`](Self::from_data), this performs no allocation or copying, which makes it
+    /// suitable for tables generated at compile time.
+    pub fn from_sorted_static(ranges: &'static [(u32, u32, f64)]) -> Self {
+        debug_assert!(ranges.windows(2).all(|w| w[0].1 < w[1].0));
+        Self::build(Cow::Borrowed(ranges))
+    }
+
+    /// Inserts `new` into the sorted, non-overlapping range list, overwriting any
+    /// overlapped portion of earlier ranges (later data wins, matching the previous
+    /// per-code-point overwrite semantics).
+    fn overwrite(ranges: &mut Vec<(u32, u32, f64)>, new: (u32, u32, f64)) {
+        let (new_lower, new_upper, _) = new;
+        if new_lower > new_upper {
+            return;
+        }
+        // Overlapping window: ranges with upper >= new_lower and lower <= new_upper
+        let start = ranges.partition_point(|&(_, upper, _)| upper < new_lower);
+        let end = ranges.partition_point(|&(lower, _, _)| lower <= new_upper);
+        let mut replacement = Vec::with_capacity(3);
+        if start < end {
+            let (first_lower, _, first_width) = ranges[start];
+            if first_lower < new_lower {
+                replacement.push((first_lower, new_lower - 1, first_width));
             }
         }
-        // emWidth is the width of character 'm'
-        let mut consumer = CharWidthMeasurer {
-            hash_map,
-            em_width: 0.0,
-        };
-        consumer.em_width = consumer.width_of("m", true);
-        consumer
+        replacement.push(new);
+        if start < end {
+            let (_, last_upper, last_width) = ranges[end - 1];
+            if last_upper > new_upper {
+                replacement.push((new_upper + 1, last_upper, last_width));
+            }
+        }
+        ranges.splice(start..end, replacement);
+    }
+
+    fn parse_json(data: &str) -> io::Result<Vec<(u32, u32, f64)>> {
+        serde_json::from_str(data)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
     }
 
     /// Loads a measurer from a JSON file (synchronously).
@@ -99,27 +159,7 @@ impl CharWidthMeasurer {
     /// Returns an error if the file cannot be read or parsed.
     pub fn load_sync(path: &str) -> io::Result<Self> {
         let json_str = fs::read_to_string(path)?;
-        let value: Value = serde_json::from_str(&json_str)?;
-        let arr = value
-            .as_array()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "JSON is not an array"))?;
-        let mut data = Vec::with_capacity(arr.len());
-        for item in arr {
-            let triple = item.as_array().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "Subitem is not an array")
-            })?;
-            let lower = triple[0].as_u64().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "lower is not an integer")
-            })? as u32;
-            let upper = triple[1].as_u64().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "upper is not an integer")
-            })? as u32;
-            let width = triple[2].as_f64().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "width is not a float")
-            })?;
-            data.push((lower, upper, width));
-        }
-        Ok(CharWidthMeasurer::from_data(data))
+        Ok(Self::from_data(Self::parse_json(&json_str)?))
     }
 
     /// Loads a measurer from a JSON string.
@@ -133,27 +173,7 @@ impl CharWidthMeasurer {
     /// # Errors
     /// Returns an error if the string cannot be parsed.
     pub fn load_from_str(data: &str) -> io::Result<Self> {
-        let value: Value = serde_json::from_str(data)?;
-        let arr = value
-            .as_array()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "JSON is not an array"))?;
-        let mut data = Vec::with_capacity(arr.len());
-        for item in arr {
-            let triple = item.as_array().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "Subitem is not an array")
-            })?;
-            let lower = triple[0].as_u64().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "lower is not an integer")
-            })? as u32;
-            let upper = triple[1].as_u64().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "upper is not an integer")
-            })? as u32;
-            let width = triple[2].as_f64().ok_or_else(|| {
-                io::Error::new(io::ErrorKind::InvalidData, "width is not a float")
-            })?;
-            data.push((lower, upper, width));
-        }
-        Ok(CharWidthMeasurer::from_data(data))
+        Ok(Self::from_data(Self::parse_json(data)?))
     }
 
     /// Looks up the width of a single character code.
@@ -177,9 +197,11 @@ impl CharWidthMeasurer {
         if Self::is_control_char(char_code) {
             return Some(0.0);
         }
-        // Directly use the hash table to look up character width
-        // The lookup table has already expanded all ranges to char_code -> width during initialization
-        self.hash_map.get(&char_code).copied()
+        if char_code < 128 {
+            let width = self.ascii[char_code as usize];
+            return if width.is_nan() { None } else { Some(width) };
+        }
+        self.lookup_range(char_code)
     }
 
     /// Calculates the width of a string.
@@ -214,7 +236,7 @@ impl CharWidthMeasurer {
                     if guess {
                         total += self.em_width;
                     } else {
-                        panic!("No width available for character code {}", text);
+                        panic!("No width available for character code {code} ({ch:?})");
                     }
                 }
             }
@@ -249,6 +271,35 @@ mod tests {
     }
 
     #[test]
+    fn test_from_unsorted_data() {
+        let data = vec![(97, 122, 8.0), (65, 90, 10.0)];
+        let measurer = CharWidthMeasurer::from_data(data);
+        assert_eq!(measurer.width_of_char_code(65), Some(10.0));
+        assert_eq!(measurer.width_of_char_code(97), Some(8.0));
+        assert_eq!(measurer.width_of_char_code(123), None);
+    }
+
+    #[test]
+    fn test_overlapping_ranges_later_wins() {
+        // (109, 109) overlaps (97, 122): the later range must win for 'm',
+        // while the rest of (97, 122) keeps its original width.
+        let data = vec![(97, 122, 8.0), (109, 109, 16.0)];
+        let measurer = CharWidthMeasurer::from_data(data);
+        assert_eq!(measurer.width_of_char_code(109), Some(16.0)); // 'm'
+        assert_eq!(measurer.width_of_char_code(108), Some(8.0)); // 'l'
+        assert_eq!(measurer.width_of_char_code(110), Some(8.0)); // 'n'
+    }
+
+    #[test]
+    fn test_from_sorted_static() {
+        static RANGES: [(u32, u32, f64); 2] = [(65, 90, 10.0), (109, 109, 16.0)];
+        let measurer = CharWidthMeasurer::from_sorted_static(&RANGES);
+        assert_eq!(measurer.em_width, 16.0);
+        assert_eq!(measurer.width_of_char_code(70), Some(10.0));
+        assert_eq!(measurer.width_of_char_code(91), None);
+    }
+
+    #[test]
     fn test_width_of() {
         let data = vec![
             (65, 90, 10.0),   // A-Z width 10
@@ -264,8 +315,6 @@ mod tests {
         assert_eq!(measurer.width_of("ABC", true), 30.0);
         assert_eq!(measurer.width_of("abc", true), 24.0);
         assert_eq!(measurer.width_of("Am", true), 26.0);
-
-        // Test guess mode for unknown characters
     }
 
     #[test]
