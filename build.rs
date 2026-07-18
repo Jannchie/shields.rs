@@ -22,6 +22,11 @@ fn main() -> io::Result<()> {
 
         let content = fs::read_to_string(path)?;
         let min_content = minify_svg(&content);
+        // Skip the write when up to date: the packaged crate ships correct .min.svg files,
+        // and its source tree may be read-only (docs.rs, Nix, shared registry caches).
+        if fs::read_to_string(&dest).is_ok_and(|existing| existing == min_content) {
+            continue;
+        }
         fs::write(dest, min_content)?;
     }
     Ok(())
