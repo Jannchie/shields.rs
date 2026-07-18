@@ -1,3 +1,26 @@
+## v1.3.0
+
+v1.2.0...v1.3.0
+
+### :sparkles: Features
+
+- **badge**: add id_suffix for embedding multiple badges in one page - By [Jannchie](mailto:jannchie@gmail.com) in f5a90bc
+- **badge**: add logo_width render option (badge-maker logoWidth parity) - By [Jannchie](mailto:jannchie@gmail.com) in 6552b1f
+- **lib**: add Badge::flat()-style constructors, try_render_badge_svg returning Result, and serde-friendly BadgeParamsOwned - By [Jannchie](mailto:jannchie@gmail.com) in 7721231
+
+### :adhesive_bandage: Fixes
+
+- **for-the-badge**: match upstream fractional layout and rendering, verified against the full svg_compare matrix (5,761 reference SVGs) - By [Jannchie](mailto:jannchie@gmail.com) in 6b00abb
+
+### :package: Build
+
+- make Simple Icons an optional default-on feature; opt out with default-features = false to drop the ~15 MB icon set - By [Jannchie](mailto:jannchie@gmail.com) in 916375e
+
+### :wrench: Chores
+
+- **ci**: add wasm32 check, cargo-semver-checks, MSRV (1.85) and a weekly upstream drift job - By [Jannchie](mailto:jannchie@gmail.com) in d335c48
+- **examples**: add std-only HTTP badge server example - By [Jannchie](mailto:jannchie@gmail.com) in b21a3c8
+
 ## v1.2.0
 
 v1.1.1...v1.2.0
