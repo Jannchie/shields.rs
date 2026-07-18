@@ -129,6 +129,7 @@ fn test_svg_compare() {
         BadgeStyle::Plastic,
         BadgeStyle::FlatSquare,
         BadgeStyle::Social,
+        BadgeStyle::ForTheBadge,
     ];
     let logo_color_selections = [Some("blue"), None];
     let mut test_cases = vec![];
