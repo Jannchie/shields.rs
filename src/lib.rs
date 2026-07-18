@@ -60,6 +60,13 @@ use color_util::to_svg_color;
 use csscolorparser::Color;
 use serde::Deserialize;
 
+/// Font width tables generated at build time from `assets/fonts/*.json`.
+mod font_tables {
+    // Generated width data contains literals that happen to look like math constants
+    #![allow(clippy::approx_constant)]
+    include!(concat!(env!("OUT_DIR"), "/font_tables.rs"));
+}
+
 /// SVG rendering template context, fields must correspond to variables in badge_svg_template_askama.svg
 #[derive(Template)]
 #[template(path = "flat_badge_template.min.svg", escape = "none")]
@@ -229,110 +236,68 @@ struct ForTheBadgeSvgTemplateContext<'a> {
 
 mod color_util {
     use csscolorparser::Color;
-    use lru::LruCache;
-    use once_cell::sync::Lazy;
-    use std::collections::HashMap;
-    use std::num::NonZeroUsize;
     use std::str::FromStr;
-    use std::sync::Mutex;
 
-    // Named color mapping
-    pub static NAMED_COLORS: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
-        HashMap::from([
-            ("brightgreen", "#4c1"),
-            ("green", "#97ca00"),
-            ("yellow", "#dfb317"),
-            ("yellowgreen", "#a4a61d"),
-            ("orange", "#fe7d37"),
-            ("red", "#e05d44"),
-            ("blue", "#007ec6"),
-            ("grey", "#555"),
-            ("lightgrey", "#9f9f9f"),
-        ])
-    });
+    /// shields.io named color palette
+    fn named_color_hex(name: &str) -> Option<&'static str> {
+        Some(match name {
+            "brightgreen" => "#4c1",
+            "green" => "#97ca00",
+            "yellow" => "#dfb317",
+            "yellowgreen" => "#a4a61d",
+            "orange" => "#fe7d37",
+            "red" => "#e05d44",
+            "blue" => "#007ec6",
+            "grey" => "#555",
+            "lightgrey" => "#9f9f9f",
+            _ => return None,
+        })
+    }
 
-    // Alias mapping
-    pub static ALIASES: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
-        HashMap::from([
-            ("gray", "grey"),
-            ("lightgray", "lightgrey"),
-            ("critical", "red"),
-            ("important", "orange"),
-            ("success", "brightgreen"),
-            ("informational", "blue"),
-            ("inactive", "lightgrey"),
-        ])
-    });
+    /// Aliases resolving to named colors
+    fn alias_target(name: &str) -> Option<&'static str> {
+        Some(match name {
+            "gray" => "grey",
+            "lightgray" => "lightgrey",
+            "critical" => "red",
+            "important" => "orange",
+            "success" => "brightgreen",
+            "informational" => "blue",
+            "inactive" => "lightgrey",
+            _ => return None,
+        })
+    }
 
     // 3/6 digit hex validation
-    pub fn is_valid_hex(s: &str) -> bool {
+    fn is_valid_hex(s: &str) -> bool {
         let s = s.trim_start_matches('#');
         let len = s.len();
         (len == 3 || len == 6) && s.chars().all(|c| c.is_ascii_hexdigit())
     }
 
-    // Simplified CSS color validation (supports rgb(a), hsl(a), common formats)
-    pub fn is_css_color(s: &str) -> bool {
-        Color::from_str(s).is_ok()
-    }
-
-    /// Standardizes color input, returning a string usable in SVG or None
-    pub fn normalize_color(color: &str) -> Option<String> {
-        static CACHE: Lazy<Mutex<LruCache<String, Option<String>>>> =
-            Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(512).unwrap())));
+    /// Outputs an SVG-compatible color: named colors and aliases become their hex value,
+    /// hex strings are normalized to a leading `#`, other valid CSS colors pass through
+    /// lowercased. Returns `None` for invalid input.
+    pub fn to_svg_color(color: &str) -> Option<String> {
         let color = color.trim();
         if color.is_empty() {
             return None;
         }
-        let key = color.to_ascii_lowercase();
-        // Check cache first
-        if let Some(cached) = {
-            let mut cache = CACHE.lock().unwrap();
-            cache.get(&key).cloned()
-        } {
-            return cached;
-        }
-        // Allocate only if there are uppercase letters
         let lower = color.to_ascii_lowercase();
-        let result = if NAMED_COLORS.contains_key(lower.as_str()) {
-            Some(lower.to_string())
-        } else if let Some(&alias) = ALIASES.get(lower.as_str()) {
-            Some(alias.to_string())
-        } else if is_valid_hex(lower.as_str()) {
-            let hex = lower.trim_start_matches('#');
-            Some(format!("#{}", hex))
-        } else if is_css_color(lower.as_str()) {
-            Some(lower.to_string())
-        } else {
-            None
-        };
-        let mut cache = CACHE.lock().unwrap();
-        cache.put(key, result.clone());
-        result
-    }
-
-    /// Outputs SVG-compatible color (hex string), prioritizing named colors and aliases, otherwise original
-    pub fn to_svg_color(color: &str) -> Option<String> {
-        static CACHE: Lazy<Mutex<LruCache<String, Option<String>>>> =
-            Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(256).unwrap())));
-        let key = color.to_ascii_lowercase();
-        if let Some(cached) = {
-            let mut cache = CACHE.lock().unwrap();
-            cache.get(&key).cloned()
-        } {
-            return cached;
+        if let Some(hex) = named_color_hex(&lower) {
+            return Some(hex.to_string());
         }
-        let normalized = normalize_color(color)?;
-        let result = if let Some(&hex) = NAMED_COLORS.get(normalized.as_str()) {
-            Some(hex.to_string())
-        } else if let Some(&alias) = ALIASES.get(normalized.as_str()) {
-            NAMED_COLORS.get(alias).map(|&h| h.to_string())
-        } else {
-            Some(normalized)
-        };
-        let mut cache = CACHE.lock().unwrap();
-        cache.put(key, result.clone());
-        result
+        if let Some(alias) = alias_target(&lower) {
+            return named_color_hex(alias).map(str::to_string);
+        }
+        if is_valid_hex(&lower) {
+            let hex = lower.trim_start_matches('#');
+            return Some(format!("#{hex}"));
+        }
+        if Color::from_str(&lower).is_ok() {
+            return Some(lower);
+        }
+        None
     }
 }
 /// Font width calculation trait, to be implemented and injected by the main project
@@ -354,46 +319,28 @@ pub enum Font {
     VerdanaBold10,
 }
 
-/// Calculates the width of text in Verdana 11px (in pixels)
+/// Calculates the width of text in the given font (in pixels)
 ///
-/// - Only the text needs to be passed in, the width table is loaded and reused internally
-/// - Efficient lazy initialization to avoid repeated IO
+/// - Width tables are generated at compile time from the JSON sources; no runtime parsing or IO
 /// - Can be directly used in scenarios like SVG badges
 pub fn get_text_width(text: &str, font: Font) -> f64 {
     use crate::measurer::CharWidthMeasurer;
-    use once_cell::sync::Lazy;
+    use std::sync::LazyLock;
 
-    // 在编译时直接将 JSON 文件内容作为字符串嵌入
-    const VERDANA_11_N_JSON_DATA: &str = include_str!("../assets/fonts/verdana-11px-normal.json");
-    const HELVETICA_11_B_JSON_DATA: &str = include_str!("../assets/fonts/helvetica-11px-bold.json");
-    const VERDANA_10_N_JSON_DATA: &str = include_str!("../assets/fonts/verdana-10px-normal.json");
-    const VERDANA_10_B_JSON_DATA: &str = include_str!("../assets/fonts/verdana-10px-bold.json");
-    static VERDANA_11_N_WIDTH_TABLE: Lazy<CharWidthMeasurer> = Lazy::new(|| {
-        // 从嵌入的字符串加载数据，而不是从文件系统
-        CharWidthMeasurer::load_from_str(VERDANA_11_N_JSON_DATA)
-            .expect("Unable to parse Verdana 11px width table")
-    });
-
-    static HELVETICA_11_B_WIDTH_TABLE: Lazy<CharWidthMeasurer> = Lazy::new(|| {
-        // 从嵌入的字符串加载数据
-        CharWidthMeasurer::load_from_str(HELVETICA_11_B_JSON_DATA)
-            .expect("Unable to parse Helvetica Bold width table")
-    });
-    static VERDANA_10_N_WIDTH_TABLE: Lazy<CharWidthMeasurer> = Lazy::new(|| {
-        CharWidthMeasurer::load_from_str(VERDANA_10_N_JSON_DATA)
-            .expect("Unable to parse Verdana 10px width table")
-    });
-
-    static VERDANA_10_B_WIDTH_TABLE: Lazy<CharWidthMeasurer> = Lazy::new(|| {
-        CharWidthMeasurer::load_from_str(VERDANA_10_B_JSON_DATA)
-            .expect("Unable to parse Verdana 10px Bold width table")
-    });
+    static VERDANA_11_N: LazyLock<CharWidthMeasurer> =
+        LazyLock::new(|| CharWidthMeasurer::from_sorted_static(&font_tables::VERDANA_11_NORMAL));
+    static HELVETICA_11_B: LazyLock<CharWidthMeasurer> =
+        LazyLock::new(|| CharWidthMeasurer::from_sorted_static(&font_tables::HELVETICA_11_BOLD));
+    static VERDANA_10_N: LazyLock<CharWidthMeasurer> =
+        LazyLock::new(|| CharWidthMeasurer::from_sorted_static(&font_tables::VERDANA_10_NORMAL));
+    static VERDANA_10_B: LazyLock<CharWidthMeasurer> =
+        LazyLock::new(|| CharWidthMeasurer::from_sorted_static(&font_tables::VERDANA_10_BOLD));
 
     match font {
-        Font::VerdanaNormal11 => VERDANA_11_N_WIDTH_TABLE.width_of(text, true),
-        Font::HelveticaBold11 => HELVETICA_11_B_WIDTH_TABLE.width_of(text, true),
-        Font::VerdanaNormal10 => VERDANA_10_N_WIDTH_TABLE.width_of(text, true),
-        Font::VerdanaBold10 => VERDANA_10_B_WIDTH_TABLE.width_of(text, true),
+        Font::VerdanaNormal11 => VERDANA_11_N.width_of(text, true),
+        Font::HelveticaBold11 => HELVETICA_11_B.width_of(text, true),
+        Font::VerdanaNormal10 => VERDANA_10_N.width_of(text, true),
+        Font::VerdanaBold10 => VERDANA_10_B.width_of(text, true),
     }
 }
 macro_rules! round_up_to_odd_float {
@@ -475,33 +422,7 @@ pub fn colors_for_background(hex: &str) -> (&'static str, &'static str) {
     }
 }
 pub(crate) fn preferred_width_of(text: &str, font: Font) -> u32 {
-    use lru::LruCache;
-    use once_cell::sync::Lazy;
-    use std::num::NonZeroUsize;
-    use std::sync::Mutex;
-
-    // Create a cache that includes font information in the key
-    static WIDTH_CACHE: Lazy<Mutex<LruCache<(String, Font), u32>>> =
-        Lazy::new(|| Mutex::new(LruCache::new(NonZeroUsize::new(1024).unwrap())));
-
-    let cache_key = (text.to_string(), font.clone());
-
-    {
-        let mut cache = WIDTH_CACHE.lock().unwrap();
-        if let Some(&cached) = cache.get(&cache_key) {
-            return cached;
-        }
-    }
-
-    let width = get_text_width(text, font);
-    let rounded = round_up_to_odd_f64(width);
-
-    if text.len() <= 1024 {
-        let mut cache = WIDTH_CACHE.lock().unwrap();
-        cache.put(cache_key, rounded);
-    }
-
-    rounded
+    round_up_to_odd_f64(get_text_width(text, font))
 }
 
 #[derive(Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
