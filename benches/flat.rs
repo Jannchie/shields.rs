@@ -1,36 +1,44 @@
 use criterion::{Criterion, criterion_group, criterion_main};
 use rand::{Rng, distr::Alphanumeric};
 use shields::{BadgeParams, BadgeStyle, render_badge_svg};
+use std::hint::black_box;
 
-fn random_string() -> String {
-    let len = rand::rng().random_range(8..=12);
-    rand::rng()
-        .sample_iter(&Alphanumeric)
-        .take(len)
-        .map(char::from)
+const STYLES: [BadgeStyle; 4] = [
+    BadgeStyle::Flat,
+    BadgeStyle::Plastic,
+    BadgeStyle::ForTheBadge,
+    BadgeStyle::Social,
+];
+
+/// Pre-generated (text, style) inputs so the RNG cost stays out of the measured loop.
+fn make_inputs(n: usize) -> Vec<(String, BadgeStyle)> {
+    let mut rng = rand::rng();
+    (0..n)
+        .map(|_| {
+            let len = rng.random_range(8..=12);
+            let text: String = (&mut rng)
+                .sample_iter(&Alphanumeric)
+                .take(len)
+                .map(char::from)
+                .collect();
+            let style = STYLES[rng.random_range(0..STYLES.len())];
+            (text, style)
+        })
         .collect()
-}
-
-fn random_style() -> BadgeStyle {
-    let styles = [
-        BadgeStyle::Flat,
-        BadgeStyle::Plastic,
-        BadgeStyle::ForTheBadge,
-        BadgeStyle::Social,
-    ];
-    let index = rand::rng().random_range(0..styles.len());
-    styles[index]
 }
 
 // A. Traditional parameter struct
 fn bench_params_badge(c: &mut Criterion) {
+    let inputs = make_inputs(1024);
+    let mut i = 0;
     c.bench_function("params_badge_svg", |b| {
         b.iter(|| {
-            let binding = random_string();
+            let (text, style) = &inputs[i % inputs.len()];
+            i += 1;
             let params = BadgeParams {
-                style: random_style(),
-                label: Some(binding.as_str()),
-                message: Some(binding.as_str()),
+                style: *style,
+                label: Some(text.as_str()),
+                message: Some(text.as_str()),
                 label_color: Some("#555"),
                 message_color: Some("#4c1"),
                 link: Some("https://example.com"),
@@ -38,19 +46,22 @@ fn bench_params_badge(c: &mut Criterion) {
                 logo: Some("rust"),
                 logo_color: Some("#FFF"),
             };
-            let _svg = render_badge_svg(&params);
+            black_box(render_badge_svg(&params));
         });
     });
 }
 
 // B. Builder pattern
 fn bench_builder_badge(c: &mut Criterion) {
+    let inputs = make_inputs(1024);
+    let mut i = 0;
     c.bench_function("builder_badge_svg", |b| {
         b.iter(|| {
-            let binding = random_string();
-            let _svg = shields::builder::Badge::style(random_style())
-                .label(&binding)
-                .message(&binding)
+            let (text, style) = &inputs[i % inputs.len()];
+            i += 1;
+            let svg = shields::builder::Badge::style(*style)
+                .label(text)
+                .message(text)
                 .label_color("#555")
                 .message_color("#4c1")
                 .logo("rust")
@@ -58,6 +69,7 @@ fn bench_builder_badge(c: &mut Criterion) {
                 .link("https://example.com")
                 .extra_link("https://example.org")
                 .build();
+            black_box(svg);
         });
     });
 }
