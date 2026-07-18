@@ -11,8 +11,12 @@
     <a target="_blank" href="{{ link }}">
     {% endif %}
     <g shape-rendering="crispEdges">
+        {% if has_label_rect %}
         <rect width="{{ left_width }}" height="28" fill="{{ label_color }}" />
         <rect x="{{ left_width }}" width="{{ right_width }}" height="28" fill="{{ message_color }}" />
+        {% else %}
+        <rect width="{{ right_width }}" height="28" fill="{{ message_color }}" />
+        {% endif %}
     </g>
     <g fill="#fff" text-anchor="middle" font-family="{{ font_family }}" text-rendering="geometricPrecision" font-size="{{ font_size }}">
         {% if has_logo %}
@@ -21,15 +25,14 @@
 
         {% if has_label %}
         {% if has_two_link %}<a target="_blank" href="{{ link }}"><rect width="{{ left_width }}" height="28" fill="rgba(0,0,0,0)"/>{% endif %}
-        <text transform="scale(.1)" x="{{ label_x }}" y="175" textLength="{{ label_width_scaled }}" fill="{{ label_text_color }}">{{ label }}</text>
+        <text transform="scale(.1)" x="{{ label_x }}" y="175" textLength="{{ label_width_scaled }}"{% if label_text_color != "#fff" %} fill="{{ label_text_color }}"{% endif %}>{{ label }}</text>
         {% if has_two_link %}</a>{% endif %}
         {% endif %}
-       
-        {% if has_message %}
+
+        {# upstream always renders the message text element, even when empty #}
         {% if has_two_link %}<a target="_blank" href="{{ extra_link }}"><rect width="{{ right_width }}" height="28" x="{{ left_width }}" fill="rgba(0,0,0,0)"/>{% endif %}
-        <text transform="scale(.1)" x="{{ message_x }}" y="175" textLength="{{ message_width_scaled }}" fill="{{ message_text_color }}" font-weight="bold">{{ message }}</text>
+        <text transform="scale(.1)" x="{{ message_x }}" y="175" textLength="{{ message_width_scaled }}" font-weight="bold"{% if message_text_color != "#fff" %} fill="{{ message_text_color }}"{% endif %}>{{ message }}</text>
         {% if has_two_link %}</a>{% endif %}
-        {% endif %}
     </g>
     {% if has_one_link %}
     </a>
