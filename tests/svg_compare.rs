@@ -34,7 +34,7 @@ fn shields_io_url(params: &BadgeParams) -> String {
         ("logo", params.logo.unwrap_or("")),
         ("logoColor", params.logo_color.unwrap_or("")),
     ];
-    let mut url = format!("{}&", url);
+    let mut url = format!("{url}&");
     for (key, value) in queries.iter() {
         if !value.is_empty() {
             url.push_str(&format!("{}={}&", key, urlencoding::encode(value)));
@@ -87,8 +87,7 @@ fn get_shields_svg_with_cache(params: &BadgeParams, url: &str) -> String {
     let resp = match resp {
         Ok(r) => r,
         Err(e) => panic!(
-            "HTTP request failed: {}\nPlease check your network connection, or manually visit shields.io to generate the cache.\nError details: {}",
-            url, e
+            "HTTP request failed: {url}\nPlease check your network connection, or manually visit shields.io to generate the cache.\nError details: {e}"
         ),
     };
     assert!(
@@ -99,13 +98,12 @@ fn get_shields_svg_with_cache(params: &BadgeParams, url: &str) -> String {
     );
     let svg = resp.text().unwrap_or_else(|e| {
         panic!(
-            "Failed to read SVG: {}\nPlease check the shields.io response content.\nError details: {}",
-            url, e
+            "Failed to read SVG: {url}\nPlease check the shields.io response content.\nError details: {e}"
         )
     });
 
     let mut file = fs::File::create(&cache_path)
-        .expect(format!("Failed to create cache file: {:?}", cache_path.display()).as_str());
+        .unwrap_or_else(|_| panic!("Failed to create cache file: {:?}", cache_path.display()));
     file.write_all(svg.as_bytes())
         .expect("Failed to write cache content");
 
@@ -114,25 +112,25 @@ fn get_shields_svg_with_cache(params: &BadgeParams, url: &str) -> String {
 
 #[test]
 fn test_svg_compare() {
-    let label_selections = vec![Some("label"), Some(""), None];
-    let message_selections = vec!["message", ""];
-    let label_color_selections = vec![Some("blue"), Some("#4c1"), Some(""), None, Some("#FFF")];
-    let message_color_selections = vec!["blue", "#4c3232", "", "#FFF"];
-    let links_selections = vec![
+    let label_selections = [Some("label"), Some(""), None];
+    let message_selections = ["message", ""];
+    let label_color_selections = [Some("blue"), Some("#4c1"), Some(""), None, Some("#FFF")];
+    let message_color_selections = ["blue", "#4c3232", "", "#FFF"];
+    let links_selections = [
         vec![None, None],
         vec![Some(""), None],
         vec![Some("https://example.com"), None],
         vec![Some("https://example.com"), Some("https://example2.com")],
         vec![Some("https://example.com"), Some("")],
     ];
-    let logo_selections = vec![Some("rust"), Some(""), None];
-    let style_selections = vec![
+    let logo_selections = [Some("rust"), Some(""), None];
+    let style_selections = [
         BadgeStyle::Flat,
         BadgeStyle::Plastic,
         BadgeStyle::FlatSquare,
         BadgeStyle::Social,
     ];
-    let logo_color_selections = vec![Some("blue"), None];
+    let logo_color_selections = [Some("blue"), None];
     let mut test_cases = vec![];
     for label in label_selections.iter() {
         for message in message_selections.iter() {
@@ -145,8 +143,8 @@ fn test_svg_compare() {
                                     if links.len() < 2 {
                                         continue;
                                     }
-                                    let link = links[0].clone();
-                                    let extra_link = links[1].clone();
+                                    let link = links[0];
+                                    let extra_link = links[1];
                                     if link.is_none() && extra_link.is_none() {
                                         continue;
                                     }
@@ -206,8 +204,8 @@ fn test_svg_fast_compare() {
     let local_svg = render_badge_svg(&params);
     let url = shields_io_url(&params);
     let shields_svg = get_shields_svg_with_cache(&params, &url);
-    let file_name_local = format!("target/tmp/svg_local.svg");
-    let file_name_shields = format!("target/tmp/svg_shields.svg");
+    let file_name_local = "target/tmp/svg_local.svg".to_string();
+    let file_name_shields = "target/tmp/svg_shields.svg".to_string();
     let mut file_local =
         fs::File::create(&file_name_local).expect("Failed to create local SVG file");
     file_local
