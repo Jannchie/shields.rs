@@ -16,7 +16,7 @@
     </g>
     <g fill="#fff" text-anchor="middle" font-family="{{ font_family }}" text-rendering="geometricPrecision" font-size="{{ font_size_scaled }}">
 
-    
+
         {% if has_logo %}
         <image x="5" y="3" width="14" height="14" href="{{ logo }}" />
         {% endif %}
@@ -24,13 +24,13 @@
 
         {% if has_label %}
         {% if has_two_link %}<a target="_blank" href="{{ link }}"> <rect width="{{ left_width }}" x="{{ rect_offset }}" height="20" fill="rgba(0,0,0,0)"/>{% endif %}
-        <text x="{{ label_x }}" y="140" transform="scale(.1)" fill="{{ label_text_color }}" textLength="{{ label_width_scaled }}">{{ label }}</text> 
+        <text x="{{ label_x }}" y="140" textLength="{{ label_width_scaled }}" transform="scale(.1)"{% if label_text_color != "#fff" %} fill="{{ label_text_color }}"{% endif %}>{{ label }}</text>
         {% if has_two_link %}</a>{% endif %}
         {% endif %}
-       
+
         {% if has_message %}
         {% if has_two_link %}<a target="_blank" href="{{ extra_link }}"> <rect width="{{ right_width }}" x="{{ message_link_x }}" height="20" fill="rgba(0,0,0,0)"/>{% endif %}
-        <text x="{{ message_x }}" y="140" transform="scale(.1)" fill="{{ message_text_color }}" textLength="{{ message_width_scaled }}">{{ message }}</text>
+        <text x="{{ message_x }}" y="140" textLength="{{ message_width_scaled }}" transform="scale(.1)"{% if message_text_color != "#fff" %} fill="{{ message_text_color }}"{% endif %}>{{ message }}</text>
         {% if has_two_link %}</a>{% endif %}
         {% endif %}
     </g>
