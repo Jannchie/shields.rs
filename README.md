@@ -75,6 +75,32 @@ fn main() {
 }
 ```
 
+Additional options beyond the shields.io URL parameters:
+
+```rust
+use shields::builder::Badge;
+
+let svg = Badge::flat()
+    .label("build")
+    .message("passing")
+    // Unique id suffix, required when several badges are inlined in one HTML
+    // page (inline SVGs share the page's id namespace).
+    .id_suffix("badge1")
+    // Widen the logo box (default 14px) for wide logos.
+    .logo_width(20)
+    .build();
+```
+
+If you only render text badges or custom SVG logos, disable the embedded
+Simple Icons set to cut compile time and binary size:
+
+```toml
+shields = { version = "1", default-features = false }
+```
+
+See `examples/server.rs` for a dependency-free HTTP badge service using the
+serde-friendly `BadgeParamsOwned` type.
+
 There is also a plain parameter-struct API if you prefer explicit construction:
 
 ```rust
