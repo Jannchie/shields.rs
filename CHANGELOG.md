@@ -1,3 +1,27 @@
+## v1.2.0
+
+v1.1.1...v1.2.0
+
+### :zap: Performance
+
+- build font tables at compile time and drop global render caches (8-thread throughput 1.7M -> 6.4M badges/s) - By [Jannchie](mailto:jannchie@gmail.com) in 84be985
+- **measurer**: replace expanded hash map with sorted-range binary search and an ASCII fast path - By [Jannchie](mailto:jannchie@gmail.com) in 4406a6a
+
+### :adhesive_bandage: Fixes
+
+- **templates**: match current shields.io text rendering (blur-filter shadow text, omitted default fills), verified against 4,609 upstream reference SVGs - By [Jannchie](mailto:jannchie@gmail.com) in b333eb6
+- **package**: ship build.rs in the published crate - By [Jannchie](mailto:jannchie@gmail.com) in 4ad4bfe
+- **build**: skip template minification writes when already up to date, so read-only source trees build - By [Jannchie](mailto:jannchie@gmail.com) in aa483db
+
+### :recycle: Refactors
+
+- **lib**: extract shared layout computation for flat-family styles - By [Jannchie](mailto:jannchie@gmail.com) in 7fabe6e
+
+### :wrench: Chores
+
+- **deps**: drop xmltree, regex, lru and once_cell - By [Jannchie](mailto:jannchie@gmail.com) in 2806ff2
+- **ci**: add fmt, clippy and test workflow - By [Jannchie](mailto:jannchie@gmail.com) in 3f70742
+
 ## v1.1.1
 
 v1.1.0...v1.1.1
