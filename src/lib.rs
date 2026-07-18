@@ -936,7 +936,7 @@ pub fn render_badge_svg(params: &BadgeParams) -> String {
                 0
             };
 
-            let total_width = left_width + right_width as i32;
+            let total_width = left_width + right_width;
 
             SocialBadgeSvgTemplateContext {
                 total_width,
