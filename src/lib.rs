@@ -9,7 +9,7 @@ This crate provides flexible APIs for creating customizable status badges for CI
 
 - Generate SVG badge strings with custom label, message, color, logo, and links.
 - Multiple badge styles: flat, flat-square, plastic, social, for-the-badge.
-- Accurate text width calculation using embedded font width tables.
+- Accurate text width calculation using font width tables embedded at compile time.
 - Builder pattern and parameter struct APIs.
 - Color normalization and aliasing (e.g., "critical" → red).
 - No runtime file I/O required for badge generation.

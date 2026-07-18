@@ -27,8 +27,10 @@ We support all major badge styles: `flat`, `flat-square`, `plastic`, `social` an
 
 | Library     | Language | Time per badge | Unit |
 | ----------- | -------- | -------------- | ---- |
-| shields     | Rust     | 4.4796         | µs   |
-| badge-maker | Node.js  | 49.5232        | µs   |
+| shields     | Rust     | 3.69           | µs   |
+| badge-maker | Node.js  | 49.52          | µs   |
+
+The benchmark renders badges with a Simple Icons logo and links (`cargo bench`). Simple text-only badges render in well under 1 µs, and rendering is lock-free, so throughput scales with cores.
 
 ## Installation
 
@@ -41,30 +43,54 @@ cargo add shields
 The library provides a chainable API for customizing badges. You can set the label, message, color, and other properties using method chaining:
 
 ```rust
+use shields::BadgeStyle;
 use shields::builder::Badge;
 
 fn main() {
     // Simple flat badge
-    let badge = Badge::flat().label("test").message("passing").build();
-    println!("{}", badge);
-    // Flat badge with custom colors
-    let badge = Badge::plastic()
+    let badge = Badge::style(BadgeStyle::Flat)
+        .label("test")
+        .message("passing")
+        .build();
+    println!("{badge}");
+
+    // Plastic badge with custom colors
+    let badge = Badge::style(BadgeStyle::Plastic)
         .label("version")
         .message("1.0.0")
         .label_color("#555")
         .message_color("#4c1")
         .build();
-    println!("{}", badge);
-    // Plastic badge with logo
-    let badge = Badge::social()
+    println!("{badge}");
+
+    // Social badge with logo and links
+    let badge = Badge::style(BadgeStyle::Social)
         .label("github")
         .message("stars")
         .logo("github")
         .link("https://github.com/user/repo")
         .extra_link("https://github.com/user/repo/stargazers")
         .build();
-    println!("{}", badge);
+    println!("{badge}");
 }
+```
+
+There is also a plain parameter-struct API if you prefer explicit construction:
+
+```rust
+use shields::{BadgeParams, BadgeStyle, render_badge_svg};
+
+let svg = render_badge_svg(&BadgeParams {
+    style: BadgeStyle::Flat,
+    label: Some("build"),
+    message: Some("passing"),
+    label_color: None,
+    message_color: Some("brightgreen"),
+    link: None,
+    extra_link: None,
+    logo: None,
+    logo_color: None,
+});
 ```
 
 ## License
@@ -73,6 +99,6 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 ## Community & Contact
 
-- GitHub: [https://github.com/Jannchie/shields](https://github.com/Jannchie/shields)
+- GitHub: [https://github.com/Jannchie/shields.rs](https://github.com/Jannchie/shields.rs)
 - Documentation: [https://docs.rs/shields](https://docs.rs/shields)
 - Author: Jannchie (<jannchie@gmail.com>)
