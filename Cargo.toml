@@ -22,8 +22,15 @@ serde_json = "1.0.141"
 
 askama = "0.14.0"
 base64 = "0.22.1"
-simpleicons = "0.3.0"
+simpleicons = { version = "0.3.0", optional = true }
 csscolorparser = "0.7.2"
+
+[features]
+default = ["simple-icons"]
+# Embeds the Simple Icons set (~3000 icons) for named logos like logo("rust").
+# Disable to shrink compile time and binary size when only custom SVG logos
+# (or no logos) are used.
+simple-icons = ["dep:simpleicons"]
 
 [build-dependencies]
 serde_json = "1.0.141"

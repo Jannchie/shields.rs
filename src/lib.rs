@@ -886,11 +886,15 @@ fn render_badge_svg_impl(
             } else if logo.starts_with("<svg") {
                 logo
             } else {
-                // let logo_color = logo_color.unwrap_or("#555");
-                // let icon = to_svg_color(logo_color).unwrap_or("#555".to_string());
-                let icon = logo;
-                let svg = simpleicons::Icon::get_svg(icon);
-                svg.unwrap_or_default()
+                #[cfg(feature = "simple-icons")]
+                {
+                    simpleicons::Icon::get_svg(logo).unwrap_or_default()
+                }
+                // Without the simple-icons feature, named logos resolve to nothing
+                #[cfg(not(feature = "simple-icons"))]
+                {
+                    ""
+                }
             }
         }
         None => "",
