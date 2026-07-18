@@ -663,6 +663,63 @@ pub struct BadgeParams<'a> {
     pub logo_color: Option<&'a str>,
 }
 
+/// Owned variant of [`BadgeParams`], for callers that cannot borrow —
+/// typically deserializing from an HTTP query string or JSON body.
+///
+/// ## Example
+/// ```rust
+/// use shields::{BadgeParamsOwned, BadgeStyle};
+/// let params: BadgeParamsOwned = serde_json::from_str(
+///     r#"{"style":"flat","label":"build","message":"passing"}"#,
+/// ).unwrap();
+/// let svg = params.render();
+/// assert!(svg.contains("passing"));
+/// ```
+#[derive(Deserialize, Debug, Clone, Default)]
+pub struct BadgeParamsOwned {
+    #[serde(default)]
+    /// Badge style variant (default is `Flat`).
+    pub style: BadgeStyle,
+    /// Optional label text (left side).
+    pub label: Option<String>,
+    /// Optional message text (right side).
+    pub message: Option<String>,
+    /// Optional label color, defaults to `#555` (dark gray).
+    pub label_color: Option<String>,
+    /// Optional message color, defaults to `#007ec6` (blue).
+    pub message_color: Option<String>,
+    /// Optional main link, used for linking the badge to a URL.
+    pub link: Option<String>,
+    /// Optional secondary link, used for social badges or additional information.
+    pub extra_link: Option<String>,
+    /// Optional logo name (e.g., "github", "rust") or SVG data.
+    pub logo: Option<String>,
+    /// Optional logo color, defaults to `#000000` for social badges, otherwise `whitesmoke`.
+    pub logo_color: Option<String>,
+}
+
+impl BadgeParamsOwned {
+    /// Borrows these owned parameters as a [`BadgeParams`].
+    pub fn as_params(&self) -> BadgeParams<'_> {
+        BadgeParams {
+            style: self.style,
+            label: self.label.as_deref(),
+            message: self.message.as_deref(),
+            label_color: self.label_color.as_deref(),
+            message_color: self.message_color.as_deref(),
+            link: self.link.as_deref(),
+            extra_link: self.extra_link.as_deref(),
+            logo: self.logo.as_deref(),
+            logo_color: self.logo_color.as_deref(),
+        }
+    }
+
+    /// Renders the badge SVG (see [`render_badge_svg`]).
+    pub fn render(&self) -> String {
+        render_badge_svg(&self.as_params())
+    }
+}
+
 /// Additional rendering options that extend [`BadgeParams`] without breaking
 /// its literal-construction API.
 ///
@@ -762,6 +819,43 @@ pub fn render_badge_svg(params: &BadgeParams) -> String {
 /// assert!(svg.contains(r##"id="sb1""##));
 /// ```
 pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> String {
+    render_badge_svg_impl(params, options)
+        .unwrap_or_else(|e| format!("<!-- Askama render error: {e} -->"))
+}
+
+/// Generate an SVG badge string, returning an error instead of an HTML
+/// comment when template rendering fails.
+///
+/// [`render_badge_svg`] silently embeds failures as `<!-- Askama render
+/// error -->` comments; use this variant when the caller needs to react.
+pub fn try_render_badge_svg(params: &BadgeParams) -> Result<String, RenderError> {
+    try_render_badge_svg_with(params, &RenderOptions::default())
+}
+
+/// [`try_render_badge_svg`] with additional [`RenderOptions`].
+pub fn try_render_badge_svg_with(
+    params: &BadgeParams,
+    options: &RenderOptions,
+) -> Result<String, RenderError> {
+    render_badge_svg_impl(params, options).map_err(|e| RenderError(e.to_string()))
+}
+
+/// Error returned by [`try_render_badge_svg`] when template rendering fails.
+#[derive(Debug)]
+pub struct RenderError(String);
+
+impl std::fmt::Display for RenderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "badge template rendering failed: {}", self.0)
+    }
+}
+
+impl std::error::Error for RenderError {}
+
+fn render_badge_svg_impl(
+    params: &BadgeParams,
+    options: &RenderOptions,
+) -> Result<String, askama::Error> {
     let id_suffix = sanitize_id_suffix(options.id_suffix);
     let id_suffix = id_suffix.as_str();
     let BadgeParams {
@@ -894,7 +988,6 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
                 message_link_x: l.message_link_x,
             }
             .render()
-            .unwrap_or_else(|e| format!("<!-- Askama render error: {e} -->"))
         }
         BadgeStyle::FlatSquare => {
             let l = compute_flat_layout(
@@ -934,7 +1027,6 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
                 message_link_x: l.message_link_x,
             }
             .render()
-            .unwrap_or_else(|e| format!("<!-- Askama render error: {e} -->"))
         }
         BadgeStyle::Plastic => {
             let l = compute_flat_layout(
@@ -974,7 +1066,6 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
                 message_link_x: l.message_link_x,
             }
             .render()
-            .unwrap_or_else(|e| format!("<!-- Askama render error: {e} -->"))
         }
         BadgeStyle::Social => {
             let label_is_none = label.is_none();
@@ -1049,7 +1140,6 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
                 logo,
             }
             .render()
-            .unwrap_or_else(|e| format!("<!-- Askama render error: {e} -->"))
         }
         BadgeStyle::ForTheBadge => {
             // for-the-badge is styled in all caps; convert before measuring widths
@@ -1154,7 +1244,6 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
                 logo_x: logo_min_x,
             }
             .render()
-            .unwrap_or_else(|e| format!("<!-- Askama render error: {e} -->"))
         }
     }
 }

@@ -305,6 +305,38 @@ impl Badge {
     pub fn style(style: BadgeStyle) -> BadgeBuilder<'static> {
         BadgeBuilder::new(style)
     }
+
+    /// Creates a builder for a [`BadgeStyle::Flat`] badge.
+    ///
+    /// ## Example
+    /// ```
+    /// use shields::builder::Badge;
+    /// let svg = Badge::flat().label("build").message("passing").build();
+    /// assert!(svg.contains("passing"));
+    /// ```
+    pub fn flat() -> BadgeBuilder<'static> {
+        BadgeBuilder::new(BadgeStyle::Flat)
+    }
+
+    /// Creates a builder for a [`BadgeStyle::FlatSquare`] badge.
+    pub fn flat_square() -> BadgeBuilder<'static> {
+        BadgeBuilder::new(BadgeStyle::FlatSquare)
+    }
+
+    /// Creates a builder for a [`BadgeStyle::Plastic`] badge.
+    pub fn plastic() -> BadgeBuilder<'static> {
+        BadgeBuilder::new(BadgeStyle::Plastic)
+    }
+
+    /// Creates a builder for a [`BadgeStyle::Social`] badge.
+    pub fn social() -> BadgeBuilder<'static> {
+        BadgeBuilder::new(BadgeStyle::Social)
+    }
+
+    /// Creates a builder for a [`BadgeStyle::ForTheBadge`] badge.
+    pub fn for_the_badge() -> BadgeBuilder<'static> {
+        BadgeBuilder::new(BadgeStyle::ForTheBadge)
+    }
 }
 
 #[cfg(test)]
