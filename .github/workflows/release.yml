@@ -19,9 +19,12 @@ jobs:
           toolchain: stable
           profile: minimal
 
-      - name: Build release binary
+      - name: Build release
         run: cargo build --release
 
+      # This is a library crate: there is no distributable binary, so no
+      # assets are attached. Uploading target/release/* used to fail on the
+      # zero-byte .cargo-lock files.
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -29,12 +32,6 @@ jobs:
           name: Release ${{ github.ref_name }}
           body: |
             Automatically generated release for version ${{ github.ref_name }}.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: target/release/*
+            See CHANGELOG.md for details.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
