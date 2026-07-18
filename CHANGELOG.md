@@ -1,3 +1,15 @@
+## v1.3.1
+
+v1.3.0...v1.3.1
+
+### :memo: Documentation
+
+- **readme**: remove marketing filler and emoji section headers; the crates.io page now carries the corrected builder examples - By [Jannchie](mailto:jannchie@gmail.com) in a2925ab
+
+### :wrench: Chores
+
+- **deps**: update dependencies (askama 0.16, csscolorparser 0.8, criterion 0.8, rand 0.10, reqwest 0.13); rendered output verified byte-identical against the full svg_compare matrix - By [Jannchie](mailto:jannchie@gmail.com) in ebe74cb
+
 ## v1.3.0
 
 v1.2.0...v1.3.0
