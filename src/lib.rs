@@ -72,6 +72,7 @@ mod font_tables {
 #[template(path = "flat_badge_template.min.svg", escape = "none")]
 struct FlatBadgeSvgTemplateContext<'a> {
     total_width: i32,
+    id_suffix: &'a str,
     badge_height: i32,
     accessible_text: &'a str,
     left_width: i32,
@@ -137,6 +138,7 @@ struct FlatSquareBadgeSvgTemplateContext<'a> {
 #[template(path = "plastic_badge_template.min.svg", escape = "none")]
 struct PlasticBadgeSvgTemplateContext<'a> {
     total_width: i32,
+    id_suffix: &'a str,
     accessible_text: &'a str,
     left_width: i32,
     right_width: i32,
@@ -168,6 +170,7 @@ struct PlasticBadgeSvgTemplateContext<'a> {
 #[template(path = "social_badge_template.min.svg", escape = "none")]
 struct SocialBadgeSvgTemplateContext<'a> {
     total_width: i32,
+    id_suffix: &'a str,
     total_height: i32,
     internal_height: u32,
     accessible_text: &'a str,
@@ -655,6 +658,44 @@ pub struct BadgeParams<'a> {
     pub logo_color: Option<&'a str>,
 }
 
+/// Additional rendering options that extend [`BadgeParams`] without breaking
+/// its literal-construction API.
+///
+/// Construct with [`RenderOptions::default`] and set fields through the
+/// builder-style methods:
+///
+/// ```rust
+/// use shields::RenderOptions;
+/// let opts = RenderOptions::default().id_suffix("badge1");
+/// ```
+#[derive(Debug, Default, Clone)]
+#[non_exhaustive]
+pub struct RenderOptions<'a> {
+    /// Suffix appended to every SVG element id (`#s`, `#r`, `#llink`, ...).
+    ///
+    /// SVGs embedded inline in the same HTML page share one id namespace, so
+    /// two badges both defining `id="s"` corrupt each other's gradients. Give
+    /// each badge a unique suffix to avoid collisions. Only `[A-Za-z0-9_-]`
+    /// characters are used; anything else is stripped.
+    pub id_suffix: &'a str,
+}
+
+impl<'a> RenderOptions<'a> {
+    /// Sets the id suffix (see the field documentation).
+    pub fn id_suffix(mut self, id_suffix: &'a str) -> Self {
+        self.id_suffix = id_suffix;
+        self
+    }
+}
+
+/// Strips characters outside `[A-Za-z0-9_-]` so an id suffix cannot break out
+/// of an attribute or inject markup (templates render unescaped).
+fn sanitize_id_suffix(raw: &str) -> String {
+    raw.chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+        .collect()
+}
+
 /// Generate an SVG badge string from [`BadgeParams`].
 ///
 /// # Arguments
@@ -681,6 +722,31 @@ pub struct BadgeParams<'a> {
 /// assert!(svg.contains("passing"));
 /// ```
 pub fn render_badge_svg(params: &BadgeParams) -> String {
+    render_badge_svg_with(params, &RenderOptions::default())
+}
+
+/// Generate an SVG badge string from [`BadgeParams`] plus [`RenderOptions`].
+///
+/// ## Example
+/// ```rust
+/// use shields::{BadgeParams, BadgeStyle, RenderOptions, render_badge_svg_with};
+/// let params = BadgeParams {
+///     style: BadgeStyle::Flat,
+///     label: Some("build"),
+///     message: Some("passing"),
+///     label_color: None,
+///     message_color: None,
+///     link: None,
+///     extra_link: None,
+///     logo: None,
+///     logo_color: None,
+/// };
+/// let svg = render_badge_svg_with(&params, &RenderOptions::default().id_suffix("b1"));
+/// assert!(svg.contains(r##"id="sb1""##));
+/// ```
+pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> String {
+    let id_suffix = sanitize_id_suffix(options.id_suffix);
+    let id_suffix = id_suffix.as_str();
     let BadgeParams {
         style,
         label,
@@ -784,6 +850,7 @@ pub fn render_badge_svg(params: &BadgeParams) -> String {
             );
             FlatBadgeSvgTemplateContext {
                 font_family: FONT_FAMILY,
+                id_suffix,
                 accessible_text: l.accessible_text.as_str(),
                 badge_height: BADGE_HEIGHT as i32,
                 left_width: l.left_width,
@@ -864,6 +931,7 @@ pub fn render_badge_svg(params: &BadgeParams) -> String {
             );
             PlasticBadgeSvgTemplateContext {
                 total_width: l.total_width,
+                id_suffix,
                 left_width: l.left_width,
                 right_width: l.right_width,
                 accessible_text: l.accessible_text.as_str(),
@@ -941,6 +1009,7 @@ pub fn render_badge_svg(params: &BadgeParams) -> String {
 
             SocialBadgeSvgTemplateContext {
                 total_width,
+                id_suffix,
                 total_height: BADGE_HEIGHT as i32,
                 internal_height,
                 accessible_text: accessible_text.as_str(),
@@ -1271,6 +1340,77 @@ mod tests {
 
         let c = Color::from_str("notexists").is_err();
         println!("{c:?}");
+    }
+
+    #[test]
+    fn test_id_suffix() {
+        use crate::builder::Badge;
+        for style in [BadgeStyle::Flat, BadgeStyle::Plastic] {
+            let svg = render_badge_svg_with(
+                &BadgeParams {
+                    style,
+                    label: Some("a"),
+                    message: Some("b"),
+                    label_color: None,
+                    message_color: None,
+                    link: None,
+                    extra_link: None,
+                    logo: None,
+                    logo_color: None,
+                },
+                &RenderOptions::default().id_suffix("x1"),
+            );
+            assert!(svg.contains(r##"id="sx1""##), "{style:?}: {svg}");
+            assert!(svg.contains(r##"url(#sx1)"##), "{style:?}");
+            assert!(svg.contains(r##"id="rx1""##), "{style:?}");
+            assert!(svg.contains(r##"url(#rx1)"##), "{style:?}");
+            assert!(!svg.contains(r##"id="s" "##), "{style:?}");
+        }
+
+        let svg = Badge::style(BadgeStyle::Social)
+            .label("a")
+            .message("b")
+            .id_suffix("x1")
+            .build();
+        for needle in [
+            r##"id="ax1""##,
+            r##"id="bx1""##,
+            r##"id="llinkx1""##,
+            r##"id="rlinkx1""##,
+            r##"url(#ax1)"##,
+            "a:hover #llinkx1{fill:url(#bx1);stroke:#ccc}a:hover #rlinkx1{fill:#4183c4}",
+        ] {
+            assert!(svg.contains(needle), "missing {needle} in {svg}");
+        }
+
+        // Unsafe characters are stripped, and the default is suffix-free
+        let svg = render_badge_svg_with(
+            &BadgeParams {
+                style: BadgeStyle::Flat,
+                label: Some("a"),
+                message: Some("b"),
+                label_color: None,
+                message_color: None,
+                link: None,
+                extra_link: None,
+                logo: None,
+                logo_color: None,
+            },
+            &RenderOptions::default().id_suffix("x\"><script>1"),
+        );
+        assert!(svg.contains(r##"id="sxscript1""##));
+        let default_svg = render_badge_svg(&BadgeParams {
+            style: BadgeStyle::Flat,
+            label: Some("a"),
+            message: Some("b"),
+            label_color: None,
+            message_color: None,
+            link: None,
+            extra_link: None,
+            logo: None,
+            logo_color: None,
+        });
+        assert!(default_svg.contains(r##"id="s""##));
     }
 
     #[test]

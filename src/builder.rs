@@ -21,7 +21,8 @@
 //!
 //! See [`BadgeBuilder`] and [`Badge`] for details.
 use crate::{
-    BadgeParams, BadgeStyle, default_label_color, default_message_color, render_badge_svg,
+    BadgeParams, BadgeStyle, RenderOptions, default_label_color, default_message_color,
+    render_badge_svg_with,
 };
 
 /// Builder for constructing SVG badges with a fluent API.
@@ -54,6 +55,7 @@ pub struct BadgeBuilder<'a> {
     logo_color: Option<&'a str>,
     link: Option<&'a str>,
     extra_link: Option<&'a str>,
+    id_suffix: Option<&'a str>,
 }
 
 impl<'a> BadgeBuilder<'a> {
@@ -74,6 +76,7 @@ impl<'a> BadgeBuilder<'a> {
             logo_color: None,
             link: None,
             extra_link: None,
+            id_suffix: None,
         }
     }
 
@@ -182,6 +185,23 @@ impl<'a> BadgeBuilder<'a> {
         self
     }
 
+    /// Sets a suffix appended to every SVG element id.
+    ///
+    /// SVGs embedded inline in the same HTML page share one id namespace, so
+    /// two badges both defining `id="s"` corrupt each other's gradients. Give
+    /// each badge a unique suffix to avoid collisions. Only `[A-Za-z0-9_-]`
+    /// characters are kept.
+    ///
+    /// # Arguments
+    /// * `id_suffix` - The suffix, e.g. `"badge1"`.
+    ///
+    /// # Returns
+    /// Mutable reference to self for chaining.
+    pub fn id_suffix(&mut self, id_suffix: &'a str) -> &mut Self {
+        self.id_suffix = Some(id_suffix);
+        self
+    }
+
     /// Builds and returns the SVG badge string.
     ///
     /// # Returns
@@ -208,17 +228,20 @@ impl<'a> BadgeBuilder<'a> {
             )
         };
 
-        render_badge_svg(&BadgeParams {
-            style: self.style,
-            label: self.label,
-            message: self.message,
-            label_color,
-            message_color,
-            logo: self.logo,
-            logo_color: self.logo_color,
-            link: self.link,
-            extra_link: self.extra_link,
-        })
+        render_badge_svg_with(
+            &BadgeParams {
+                style: self.style,
+                label: self.label,
+                message: self.message,
+                label_color,
+                message_color,
+                logo: self.logo,
+                logo_color: self.logo_color,
+                link: self.link,
+                extra_link: self.extra_link,
+            },
+            &RenderOptions::default().id_suffix(self.id_suffix.unwrap_or("")),
+        )
     }
 }
 
