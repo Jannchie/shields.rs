@@ -1,5 +1,5 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use rand::{Rng, distr::Alphanumeric};
+use rand::{RngExt, distr::Alphanumeric};
 use shields::{BadgeParams, BadgeStyle, render_badge_svg};
 use std::hint::black_box;
 
