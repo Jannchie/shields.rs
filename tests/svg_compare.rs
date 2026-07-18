@@ -12,10 +12,10 @@ fn shields_io_url(params: &BadgeParams) -> String {
         BadgeStyle::Social => "social",
         BadgeStyle::ForTheBadge => "for-the-badge",
     };
-    let url = if params.label.is_some() {
+    let url = if let Some(label) = &params.label {
         format!(
             "https://img.shields.io/badge/{}-{}-blue?style={}",
-            params.label.as_ref().unwrap(),
+            label,
             params.message.unwrap_or("").replace(" ", "%20"),
             style
         )
