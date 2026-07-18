@@ -2,6 +2,7 @@
 name = "shields"
 version = "1.2.0"
 edition = "2024"
+rust-version = "1.85"
 authors = ["Jannchie <jannchie@gmail.com>"]
 description = "High-performance Rust badge rendering engine, compatible with shields.io"
 license = "MIT"

@@ -1,0 +1,41 @@
+name: Upstream drift check
+
+# shields.io occasionally restructures its SVG output. This weekly job
+# re-fetches the full svg_compare reference matrix (~5.8k badges) and fails
+# when local rendering no longer matches, opening an issue so drift is
+# noticed before users report it.
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Compare against live shields.io
+        id: compare
+        run: cargo test --release --test svg_compare
+
+      - name: Open issue on drift
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title upstream rendering drift" --json number --jq 'length')
+          if [ "$existing" = "0" ]; then
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "shields.io upstream rendering drift detected" \
+              --body "The weekly svg_compare run against live shields.io failed: upstream output no longer matches local rendering. See the workflow run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          fi
