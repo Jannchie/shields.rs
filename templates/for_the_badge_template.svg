@@ -20,7 +20,7 @@
     </g>
     <g fill="#fff" text-anchor="middle" font-family="{{ font_family }}" text-rendering="geometricPrecision" font-size="{{ font_size }}">
         {% if has_logo %}
-        <image x="{{ logo_x }}" y="7" width="14" height="14" href="{{ logo }}" />
+        <image x="{{ logo_x }}" y="7" width="{{ logo_width }}" height="14" href="{{ logo }}" />
         {% endif %}
 
         {% if has_label %}

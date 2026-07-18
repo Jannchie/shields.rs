@@ -71,6 +71,7 @@ mod font_tables {
 #[derive(Template)]
 #[template(path = "flat_badge_template.min.svg", escape = "none")]
 struct FlatBadgeSvgTemplateContext<'a> {
+    logo_width: u32,
     total_width: i32,
     id_suffix: &'a str,
     badge_height: i32,
@@ -106,6 +107,7 @@ struct FlatBadgeSvgTemplateContext<'a> {
 #[derive(Template)]
 #[template(path = "flat_square_badge_template.min.svg", escape = "none")]
 struct FlatSquareBadgeSvgTemplateContext<'a> {
+    logo_width: u32,
     total_width: i32,
     badge_height: i32,
     accessible_text: &'a str,
@@ -137,6 +139,7 @@ struct FlatSquareBadgeSvgTemplateContext<'a> {
 #[derive(Template)]
 #[template(path = "plastic_badge_template.min.svg", escape = "none")]
 struct PlasticBadgeSvgTemplateContext<'a> {
+    logo_width: u32,
     total_width: i32,
     id_suffix: &'a str,
     accessible_text: &'a str,
@@ -169,6 +172,7 @@ struct PlasticBadgeSvgTemplateContext<'a> {
 #[derive(Template)]
 #[template(path = "social_badge_template.min.svg", escape = "none")]
 struct SocialBadgeSvgTemplateContext<'a> {
+    logo_width: u32,
     total_width: i32,
     id_suffix: &'a str,
     total_height: i32,
@@ -195,6 +199,7 @@ struct SocialBadgeSvgTemplateContext<'a> {
 #[derive(Template)]
 #[template(path = "for_the_badge_template.min.svg", escape = "none")]
 struct ForTheBadgeSvgTemplateContext<'a> {
+    logo_width: u32,
     // SVG dimensions (upstream keeps fractional widths for this style)
     total_width: f64,
 
@@ -678,12 +683,24 @@ pub struct RenderOptions<'a> {
     /// each badge a unique suffix to avoid collisions. Only `[A-Za-z0-9_-]`
     /// characters are used; anything else is stripped.
     pub id_suffix: &'a str,
+
+    /// Width of the rendered logo in pixels (default 14).
+    ///
+    /// Mirrors badge-maker's `logoWidth` option. The logo height stays 14;
+    /// widen this for logos with a wide aspect ratio so they are not squeezed.
+    pub logo_width: Option<u32>,
 }
 
 impl<'a> RenderOptions<'a> {
     /// Sets the id suffix (see the field documentation).
     pub fn id_suffix(mut self, id_suffix: &'a str) -> Self {
         self.id_suffix = id_suffix;
+        self
+    }
+
+    /// Sets the rendered logo width in pixels (see the field documentation).
+    pub fn logo_width(mut self, logo_width: u32) -> Self {
+        self.logo_width = Some(logo_width);
         self
     }
 }
@@ -801,7 +818,7 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
         icon_svg.to_string()
     };
     let has_logo = !logo.is_empty();
-    let logo_width = 14;
+    let logo_width = options.logo_width.unwrap_or(14);
     let mut logo_padding = 3;
     if label.is_some() && label.unwrap().is_empty() {
         logo_padding = 0;
@@ -849,6 +866,7 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
                 extra_link,
             );
             FlatBadgeSvgTemplateContext {
+                logo_width,
                 font_family: FONT_FAMILY,
                 id_suffix,
                 accessible_text: l.accessible_text.as_str(),
@@ -891,6 +909,7 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
                 extra_link,
             );
             FlatSquareBadgeSvgTemplateContext {
+                logo_width,
                 font_family: FONT_FAMILY,
                 accessible_text: l.accessible_text.as_str(),
                 badge_height: BADGE_HEIGHT as i32,
@@ -930,6 +949,7 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
                 extra_link,
             );
             PlasticBadgeSvgTemplateContext {
+                logo_width,
                 total_width: l.total_width,
                 id_suffix,
                 left_width: l.left_width,
@@ -1008,6 +1028,7 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
             let total_width = left_width + right_width;
 
             SocialBadgeSvgTemplateContext {
+                logo_width,
                 total_width,
                 id_suffix,
                 total_height: BADGE_HEIGHT as i32,
@@ -1109,6 +1130,7 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
             let (message_text_color, _) = colors_for_background(&hex_message_color);
 
             ForTheBadgeSvgTemplateContext {
+                logo_width: logo_width as u32,
                 total_width,
                 accessible_text: accessible_text.as_str(),
                 has_label_rect: need_label_rect,
@@ -1411,6 +1433,33 @@ mod tests {
             logo_color: None,
         });
         assert!(default_svg.contains(r##"id="s""##));
+    }
+
+    #[test]
+    fn test_logo_width() {
+        let params = BadgeParams {
+            style: BadgeStyle::Flat,
+            label: Some("build"),
+            message: Some("passing"),
+            label_color: None,
+            message_color: None,
+            link: None,
+            extra_link: None,
+            logo: Some("rust"),
+            logo_color: None,
+        };
+        let default_svg = render_badge_svg(&params);
+        let wide_svg = render_badge_svg_with(&params, &RenderOptions::default().logo_width(30));
+        assert!(default_svg.contains(r#"width="14" height="14""#));
+        assert!(wide_svg.contains(r#"width="30" height="14""#));
+
+        let width_of = |svg: &str| -> u32 {
+            let start = svg.find("width=\"").unwrap() + 7;
+            let end = svg[start..].find('"').unwrap() + start;
+            svg[start..end].parse().unwrap()
+        };
+        // totalLogoWidth = logoWidth + logoPadding, so +16px logo -> +16px badge
+        assert_eq!(width_of(&wide_svg), width_of(&default_svg) + 16);
     }
 
     #[test]

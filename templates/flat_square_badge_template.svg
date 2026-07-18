@@ -18,7 +18,7 @@
 
 
         {% if has_logo %}
-        <image x="5" y="3" width="14" height="14" href="{{ logo }}" />
+        <image x="5" y="3" width="{{ logo_width }}" height="14" href="{{ logo }}" />
         {% endif %}
 
 

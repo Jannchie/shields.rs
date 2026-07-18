@@ -56,6 +56,7 @@ pub struct BadgeBuilder<'a> {
     link: Option<&'a str>,
     extra_link: Option<&'a str>,
     id_suffix: Option<&'a str>,
+    logo_width: Option<u32>,
 }
 
 impl<'a> BadgeBuilder<'a> {
@@ -77,6 +78,7 @@ impl<'a> BadgeBuilder<'a> {
             link: None,
             extra_link: None,
             id_suffix: None,
+            logo_width: None,
         }
     }
 
@@ -202,6 +204,21 @@ impl<'a> BadgeBuilder<'a> {
         self
     }
 
+    /// Sets the rendered logo width in pixels (default 14).
+    ///
+    /// Mirrors badge-maker's `logoWidth` option. The logo height stays 14;
+    /// widen this for logos with a wide aspect ratio so they are not squeezed.
+    ///
+    /// # Arguments
+    /// * `logo_width` - Logo width in pixels.
+    ///
+    /// # Returns
+    /// Mutable reference to self for chaining.
+    pub fn logo_width(&mut self, logo_width: u32) -> &mut Self {
+        self.logo_width = Some(logo_width);
+        self
+    }
+
     /// Builds and returns the SVG badge string.
     ///
     /// # Returns
@@ -240,7 +257,13 @@ impl<'a> BadgeBuilder<'a> {
                 link: self.link,
                 extra_link: self.extra_link,
             },
-            &RenderOptions::default().id_suffix(self.id_suffix.unwrap_or("")),
+            &{
+                let mut options = RenderOptions::default().id_suffix(self.id_suffix.unwrap_or(""));
+                if let Some(width) = self.logo_width {
+                    options = options.logo_width(width);
+                }
+                options
+            },
         )
     }
 }

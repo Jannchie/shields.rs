@@ -30,7 +30,7 @@
     <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
 
         {% if has_logo %}
-        <image x="5" y="2" width="14" height="14" href="{{ logo }}" />
+        <image x="5" y="2" width="{{ logo_width }}" height="14" href="{{ logo }}" />
         {% endif %}
 
         {% if has_label %}
