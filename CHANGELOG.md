@@ -1,3 +1,15 @@
+## v1.4.0
+
+v1.3.1...v1.4.0
+
+### :zap: Performance
+
+- **badge**: cache resolved logo data URIs in a thread-local LRU and trim redundant color parsing, base64 copies and template reallocation (3.47 -> 0.85 µs/badge; logo badges 3.31 -> 0.76 µs); output verified byte-identical over a 307,200-case parameter matrix - By [Jannchie](mailto:jannchie@gmail.com) in 5ae8aab
+
+### :memo: Documentation
+
+- **readme**: refresh benchmark numbers and state the comparison method; the badge-maker baseline was re-measured at 43.7 µs - By [Jannchie](mailto:jannchie@gmail.com) in 5143a7e
+
 ## v1.3.1
 
 v1.3.0...v1.3.1
