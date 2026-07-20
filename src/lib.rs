@@ -52,6 +52,7 @@ See [`BadgeParams`](crate::BadgeParams), [`BadgeStyle`](crate::BadgeStyle), and 
 
 "#]
 use askama::Template;
+use std::borrow::Cow;
 use std::str::FromStr;
 pub mod builder;
 pub mod measurer;
@@ -245,6 +246,7 @@ struct ForTheBadgeSvgTemplateContext<'a> {
 
 mod color_util {
     use csscolorparser::Color;
+    use std::borrow::Cow;
     use std::str::FromStr;
 
     /// shields.io named color palette
@@ -278,7 +280,7 @@ mod color_util {
     }
 
     // 3/6 digit hex validation
-    fn is_valid_hex(s: &str) -> bool {
+    pub fn is_valid_hex(s: &str) -> bool {
         let s = s.trim_start_matches('#');
         let len = s.len();
         (len == 3 || len == 6) && s.chars().all(|c| c.is_ascii_hexdigit())
@@ -287,21 +289,30 @@ mod color_util {
     /// Outputs an SVG-compatible color: named colors and aliases become their hex value,
     /// hex strings are normalized to a leading `#`, other valid CSS colors pass through
     /// lowercased. Returns `None` for invalid input.
-    pub fn to_svg_color(color: &str) -> Option<String> {
+    pub fn to_svg_color(color: &str) -> Option<Cow<'_, str>> {
         let color = color.trim();
         if color.is_empty() {
             return None;
         }
-        let lower = color.to_ascii_lowercase();
+        // Callers pass an already-lowercase color most of the time (`#4c1`, `blue`),
+        // and named colors resolve to static hex, so the common paths never allocate.
+        let lower = if color.bytes().any(|b| b.is_ascii_uppercase()) {
+            Cow::Owned(color.to_ascii_lowercase())
+        } else {
+            Cow::Borrowed(color)
+        };
         if let Some(hex) = named_color_hex(&lower) {
-            return Some(hex.to_string());
+            return Some(Cow::Borrowed(hex));
         }
         if let Some(alias) = alias_target(&lower) {
-            return named_color_hex(alias).map(str::to_string);
+            return named_color_hex(alias).map(Cow::Borrowed);
         }
         if is_valid_hex(&lower) {
-            let hex = lower.trim_start_matches('#');
-            return Some(format!("#{hex}"));
+            return Some(if lower.starts_with('#') {
+                lower
+            } else {
+                Cow::Owned(format!("#{lower}"))
+            });
         }
         if Color::from_str(&lower).is_ok() {
             return Some(lower);
@@ -420,11 +431,19 @@ pub(crate) fn preferred_width_of(text: &str, font: Font) -> u32 {
     round_up_to_odd_f64(get_text_width(text, font))
 }
 
-/// Parses `color` and returns its CSS hex form, falling back to `fallback` (a valid color).
-fn css_hex_or(color: &str, fallback: &str) -> String {
-    Color::from_str(color)
+/// Foreground/shadow pair for `color`, falling back to `fallback` when it does not parse.
+///
+/// Colors reaching here have already been normalized by `to_svg_color`, so they are
+/// usually plain hex. `colors_for_background` expands 3-digit hex to the same bytes
+/// `to_css_hex` would produce, so hex inputs can skip the CSS parse entirely.
+fn colors_for_color_or(color: &str, fallback: &str) -> (&'static str, &'static str) {
+    if color_util::is_valid_hex(color) {
+        return colors_for_background(color);
+    }
+    let hex = Color::from_str(color)
         .unwrap_or_else(|_| Color::from_str(fallback).unwrap())
-        .to_css_hex()
+        .to_css_hex();
+    colors_for_background(&hex)
 }
 
 /// Capitalizes the first character and lowercases the rest (matches askama's `capitalize`).
@@ -526,10 +545,8 @@ fn compute_flat_layout<'a>(
     let total_width = left_width + right_width;
 
     let right_width = right_width + if !has_label_color { offset } else { 0 };
-    let hex_label_color = css_hex_or(label_color, "#555");
-    let hex_message_color = css_hex_or(message_color, "#007ec6");
-    let (label_text_color, label_shadow_color) = colors_for_background(&hex_label_color);
-    let (message_text_color, message_shadow_color) = colors_for_background(&hex_message_color);
+    let (label_text_color, label_shadow_color) = colors_for_color_or(label_color, "#555");
+    let (message_text_color, message_shadow_color) = colors_for_color_or(message_color, "#007ec6");
     let rect_offset = if has_logo { 19 } else { 0 };
 
     let message_link_x = if has_logo && !has_label && extra_link_not_empty_str {
@@ -852,6 +869,86 @@ impl std::fmt::Display for RenderError {
 
 impl std::error::Error for RenderError {}
 
+/// Renders `ctx`, reserving room for the logo up front.
+///
+/// `Template::render` sizes its buffer from `SIZE_HINT`, which only covers the template's
+/// literal text. A badge carrying a base64 logo runs several KB past that and would
+/// reallocate mid-render.
+fn render_reserving<T: Template>(ctx: &T, logo_len: usize) -> Result<String, askama::Error> {
+    let mut buf = String::with_capacity(T::SIZE_HINT + logo_len);
+    ctx.render_into(&mut buf)?;
+    Ok(buf)
+}
+
+/// Resolves `logo` (a Simple Icons slug or a raw `<svg>` string) to the `href` value
+/// the templates embed: a base64 data URI, or an empty string when nothing resolves.
+fn build_logo_data_uri(logo: &str, logo_color: &str) -> String {
+    let icon_svg: &str = if logo.starts_with("<svg") {
+        logo
+    } else {
+        #[cfg(feature = "simple-icons")]
+        {
+            simpleicons::Icon::get_svg(logo).unwrap_or_default()
+        }
+        // Without the simple-icons feature, named logos resolve to nothing
+        #[cfg(not(feature = "simple-icons"))]
+        {
+            ""
+        }
+    };
+    if !icon_svg.starts_with("<svg") {
+        return icon_svg.to_string();
+    }
+
+    // Only inject fill when the <svg> tag does not already carry one
+    let svg_tag_end = icon_svg.find('>').unwrap_or(0);
+    let has_fill_in_svg_tag = icon_svg[..svg_tag_end].contains("fill=");
+    let logo_svg = if !has_fill_in_svg_tag && !logo_color.is_empty() {
+        Cow::Owned(icon_svg.replace("<svg", format!("<svg fill=\"{logo_color}\"").as_str()))
+    } else {
+        Cow::Borrowed(icon_svg)
+    };
+
+    const PREFIX: &str = "data:image/svg+xml;base64,";
+    let mut uri = String::with_capacity(PREFIX.len() + logo_svg.len().div_ceil(3) * 4);
+    uri.push_str(PREFIX);
+    base64::engine::general_purpose::STANDARD.encode_string(logo_svg.as_ref(), &mut uri);
+    uri
+}
+
+/// Resolving a logo means a Simple Icons lookup, a fill rewrite and a base64 encode of
+/// a few KB — roughly 70% of a logo badge's render time, and fully determined by
+/// `(logo, logo_color)`. A small per-thread cache keeps it off the hot path; being
+/// thread-local, it costs no lock and does not serialize concurrent rendering.
+mod logo_cache {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    const CAPACITY: usize = 16;
+
+    thread_local! {
+        /// Least-recently-used first, so eviction pops the front.
+        static CACHE: RefCell<Vec<(String, String, Rc<str>)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub fn get_or_insert(logo: &str, color: &str, build: fn(&str, &str) -> String) -> Rc<str> {
+        CACHE.with_borrow_mut(|entries| {
+            if let Some(i) = entries.iter().position(|(l, c, _)| l == logo && c == color) {
+                let entry = entries.remove(i);
+                let uri = Rc::clone(&entry.2);
+                entries.push(entry);
+                return uri;
+            }
+            let uri: Rc<str> = Rc::from(build(logo, color));
+            if entries.len() == CAPACITY {
+                entries.remove(0);
+            }
+            entries.push((logo.to_owned(), color.to_owned(), Rc::clone(&uri)));
+            uri
+        })
+    }
+}
+
 fn render_badge_svg_impl(
     params: &BadgeParams,
     options: &RenderOptions,
@@ -877,44 +974,12 @@ fn render_badge_svg_impl(
     };
 
     let logo_color = logo_color.unwrap_or(default_logo_color);
-    let logo_color = to_svg_color(logo_color).unwrap_or(default_logo_color.to_string());
-    let icon_svg = match logo {
-        Some(logo) => {
-            let logo = logo.trim();
-            if logo.is_empty() {
-                ""
-            } else if logo.starts_with("<svg") {
-                logo
-            } else {
-                #[cfg(feature = "simple-icons")]
-                {
-                    simpleicons::Icon::get_svg(logo).unwrap_or_default()
-                }
-                // Without the simple-icons feature, named logos resolve to nothing
-                #[cfg(not(feature = "simple-icons"))]
-                {
-                    ""
-                }
-            }
-        }
-        None => "",
-    };
-    // 如果 logo 为 <svg 开头，则需要获取 base64 编码
-    let logo = if icon_svg.starts_with("<svg") {
-        // 只检查 <svg> 标签内是否有 fill 属性，且 logo_color 不为空，则添加 fill 属性
-        let svg_tag_end = icon_svg.find('>').unwrap_or(0);
-        let svg_tag = &icon_svg[..svg_tag_end];
-        let has_fill_in_svg_tag = svg_tag.contains("fill=");
-        let logo_svg = if !has_fill_in_svg_tag && !logo_color.is_empty() {
-            icon_svg.replace("<svg", format!("<svg fill=\"{logo_color}\"").as_str())
-        } else {
-            icon_svg.to_string()
-        };
-        let base64_logo = base64::engine::general_purpose::STANDARD.encode(logo_svg);
-        format!("data:image/svg+xml;base64,{base64_logo}")
-    } else {
-        icon_svg.to_string()
-    };
+    let logo_color = to_svg_color(logo_color).unwrap_or(Cow::Borrowed(default_logo_color));
+
+    let logo_src = logo.map(str::trim).unwrap_or("");
+    let logo_uri = (!logo_src.is_empty())
+        .then(|| logo_cache::get_or_insert(logo_src, &logo_color, build_logo_data_uri));
+    let logo = logo_uri.as_deref().unwrap_or("");
     let has_logo = !logo.is_empty();
     let logo_width = options.logo_width.unwrap_or(14);
     let mut logo_padding = 3;
@@ -930,26 +995,25 @@ fn render_badge_svg_impl(
 
     let has_label_color = !label_color.unwrap_or("").is_empty();
     let message_color = message_color.unwrap_or(default_message_color());
-    let message_color = to_svg_color(message_color).unwrap_or("#007ec6".to_string());
+    let message_color = to_svg_color(message_color).unwrap_or(Cow::Borrowed("#007ec6"));
 
     let label_color = match (
         label.unwrap_or("").is_empty(),
         label_color.unwrap_or("").is_empty(),
     ) {
         (true, true) if has_logo => "#555",
-        (true, true) => message_color.as_str(),
+        (true, true) => message_color.as_ref(),
         (_, _) => label_color.unwrap_or(default_label_color()),
     };
 
-    let binding = to_svg_color(label_color).unwrap_or("#555".to_string());
-    let label_color = binding.as_str();
+    let binding = to_svg_color(label_color).unwrap_or(Cow::Borrowed("#555"));
+    let label_color = binding.as_ref();
 
-    let message_color = message_color.as_str();
+    let message_color = message_color.as_ref();
     let message = message.unwrap_or("");
     let link = link.unwrap_or("");
     let extra_link_not_empty_str = extra_link.is_none() || !extra_link.unwrap().is_empty();
     let extra_link = extra_link.unwrap_or("");
-    let logo = logo.as_str();
     match style {
         BadgeStyle::Flat => {
             let l = compute_flat_layout(
@@ -963,7 +1027,7 @@ fn render_badge_svg_impl(
                 extra_link_not_empty_str,
                 extra_link,
             );
-            FlatBadgeSvgTemplateContext {
+            let ctx = FlatBadgeSvgTemplateContext {
                 logo_width,
                 font_family: FONT_FAMILY,
                 id_suffix,
@@ -990,8 +1054,8 @@ fn render_badge_svg_impl(
                 logo,
                 rect_offset: l.rect_offset,
                 message_link_x: l.message_link_x,
-            }
-            .render()
+            };
+            render_reserving(&ctx, logo.len())
         }
         BadgeStyle::FlatSquare => {
             let l = compute_flat_layout(
@@ -1005,7 +1069,7 @@ fn render_badge_svg_impl(
                 extra_link_not_empty_str,
                 extra_link,
             );
-            FlatSquareBadgeSvgTemplateContext {
+            let ctx = FlatSquareBadgeSvgTemplateContext {
                 logo_width,
                 font_family: FONT_FAMILY,
                 accessible_text: l.accessible_text.as_str(),
@@ -1029,8 +1093,8 @@ fn render_badge_svg_impl(
                 logo,
                 rect_offset: l.rect_offset,
                 message_link_x: l.message_link_x,
-            }
-            .render()
+            };
+            render_reserving(&ctx, logo.len())
         }
         BadgeStyle::Plastic => {
             let l = compute_flat_layout(
@@ -1044,7 +1108,7 @@ fn render_badge_svg_impl(
                 extra_link_not_empty_str,
                 extra_link,
             );
-            PlasticBadgeSvgTemplateContext {
+            let ctx = PlasticBadgeSvgTemplateContext {
                 logo_width,
                 total_width: l.total_width,
                 id_suffix,
@@ -1068,8 +1132,8 @@ fn render_badge_svg_impl(
                 logo,
                 rect_offset: l.rect_offset,
                 message_link_x: l.message_link_x,
-            }
-            .render()
+            };
+            render_reserving(&ctx, logo.len())
         }
         BadgeStyle::Social => {
             let label_is_none = label.is_none();
@@ -1122,7 +1186,7 @@ fn render_badge_svg_impl(
 
             let total_width = left_width + right_width;
 
-            SocialBadgeSvgTemplateContext {
+            let ctx = SocialBadgeSvgTemplateContext {
                 logo_width,
                 total_width,
                 id_suffix,
@@ -1142,8 +1206,8 @@ fn render_badge_svg_impl(
                 link,
                 extra_link,
                 logo,
-            }
-            .render()
+            };
+            render_reserving(&ctx, logo.len())
         }
         BadgeStyle::ForTheBadge => {
             // for-the-badge is styled in all caps; convert before measuring widths
@@ -1214,16 +1278,13 @@ fn render_badge_svg_impl(
             };
             let total_width = label_rect_width + message_rect_width;
 
-            let hex_label_color = css_hex_or(label_color, "#555");
-            let hex_message_color = css_hex_or(message_color, "#007ec6");
-
             let message_mid_x = message_text_min_x + 0.5 * message_text_width;
             let label_mid_x = label_text_min_x + 0.5 * label_text_width;
 
-            let (label_text_color, _) = colors_for_background(&hex_label_color);
-            let (message_text_color, _) = colors_for_background(&hex_message_color);
+            let (label_text_color, _) = colors_for_color_or(label_color, "#555");
+            let (message_text_color, _) = colors_for_color_or(message_color, "#007ec6");
 
-            ForTheBadgeSvgTemplateContext {
+            let ctx = ForTheBadgeSvgTemplateContext {
                 logo_width: logo_width as u32,
                 total_width,
                 accessible_text: accessible_text.as_str(),
@@ -1246,8 +1307,8 @@ fn render_badge_svg_impl(
                 extra_link,
                 logo,
                 logo_x: logo_min_x,
-            }
-            .render()
+            };
+            render_reserving(&ctx, logo.len())
         }
     }
 }
