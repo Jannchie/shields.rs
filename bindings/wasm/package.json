@@ -1,0 +1,13 @@
+{
+  "name": "shields-wasm-bench",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local harness for benchmarking the shields WASM binding (see bench.mjs). The publishable package is the generated pkg/ directory.",
+  "type": "module",
+  "scripts": {
+    "bench": "node bench.mjs"
+  },
+  "devDependencies": {
+    "badge-maker": "^4.0.0"
+  }
+}
