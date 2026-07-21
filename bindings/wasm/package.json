@@ -4,6 +4,7 @@
   "private": true,
   "description": "Local harness for benchmarking the shields WASM binding (see bench.mjs). The publishable package is the generated pkg/ directory.",
   "type": "module",
+  "packageManager": "pnpm@10.28.0",
   "scripts": {
     "bench": "node bench.mjs"
   },

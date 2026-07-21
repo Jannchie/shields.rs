@@ -58,8 +58,8 @@ the JS renderer shields.io itself uses:
 
 ```sh
 wasm-pack build --target nodejs --release
-npm install          # dev dep: badge-maker
-npm run bench
+pnpm install         # dev dep: badge-maker
+pnpm bench
 ```
 
 Representative run (Node v22, 200k iterations/cell):
@@ -80,6 +80,12 @@ number a Node caller actually sees.
 CI (`.github/workflows/publish-wasm.yml`) publishes `shields-wasm` to npm on
 every `v*` tag, using **npm Trusted Publishing** (OIDC) — no `NPM_TOKEN` secret,
 and every release carries provenance.
+
+> The `publish` step uses the **npm CLI**, not pnpm, on purpose: pnpm's OIDC
+> trusted-publishing support is currently broken (fails with 404 on pnpm 11,
+> [pnpm#11513](https://github.com/pnpm/pnpm/issues/11513)). pnpm is fine for
+> installs and scripts (`pnpm install`, `pnpm bench`) — the disk savings live
+> there; the publish job installs no dependencies, so npm costs nothing extra.
 
 Trusted Publishing can only be configured on a package that already exists, so
 the **first** release needs a one-time manual bootstrap:

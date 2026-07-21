@@ -3,6 +3,11 @@ name: Publish WASM to npm
 # Publishes shields-wasm on every release tag, matching release.yml.
 # Auth is npm Trusted Publishing (OIDC) — no NPM_TOKEN secret. See the one-time
 # bootstrap in bindings/wasm/README.md before the first tokenless run works.
+#
+# The publish step deliberately uses the npm CLI, not pnpm: pnpm's OIDC trusted-
+# publishing support is currently broken (404 on pnpm 11, pnpm#11513). This job
+# installs no project dependencies, so there is no pnpm disk saving to gain here
+# anyway. Use pnpm for local installs/scripts (see the README).
 on:
   push:
     tags:
