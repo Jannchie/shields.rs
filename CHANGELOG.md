@@ -1,3 +1,11 @@
+## v1.5.0
+
+v1.4.0...v1.5.0
+
+### :sparkles: Features
+
+- **wasm**: add a WebAssembly binding, published as `shields-wasm` on npm — `renderBadge(options)` reuses the core engine unchanged, runs 5-13x faster than badge-maker, and ships for Node/browser/edge. CI publishes it on tag via npm OIDC Trusted Publishing with provenance - By [Jannchie](mailto:jannchie@gmail.com) in 10f110c
+
 ## v1.4.0
 
 v1.3.1...v1.4.0
