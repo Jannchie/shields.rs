@@ -25,8 +25,16 @@ the slim build unless you need named-logo lookup.
 
 ## Usage
 
+```sh
+npm install shields-wasm
+```
+
+The published package targets Node (CommonJS). For browser / bundler / edge
+consumers, build the `--target web` or `--target bundler` variant locally (see
+[Build](#build)).
+
 ```js
-import { renderBadge } from 'shields-wasm'; // or require('./pkg/shields_wasm.js') on Node
+const { renderBadge } = require('shields-wasm'); // ESM: import { renderBadge } from 'shields-wasm'
 
 const svg = renderBadge({
   style: 'flat',                 // flat | flat-square | plastic | social | for-the-badge
@@ -58,11 +66,34 @@ Representative run (Node v22, 200k iterations/cell):
 
 | workload      | shields-wasm | badge-maker | speedup |
 |---------------|--------------|-------------|---------|
-| flat          | ~3.0 µs      | ~24 µs      | ~8×     |
-| for-the-badge | ~2.7 µs      | ~15 µs      | ~6×     |
-| plastic       | ~2.9 µs      | ~27 µs      | ~10×    |
-| social        | ~2.8 µs      | ~32 µs      | ~12×    |
+| flat          | ~2.6 µs      | ~24 µs      | ~9×     |
+| for-the-badge | ~2.3 µs      | ~15 µs      | ~6×     |
+| plastic       | ~2.5 µs      | ~27 µs      | ~11×    |
+| social        | ~2.4 µs      | ~31 µs      | ~13×    |
 
 The per-call cost includes JS↔WASM marshaling (deserializing the options object
 and copying the SVG string out), so native Rust is faster still; this is the
 number a Node caller actually sees.
+
+## Publishing
+
+CI (`.github/workflows/publish-wasm.yml`) publishes `shields-wasm` to npm on
+every `v*` tag, using **npm Trusted Publishing** (OIDC) — no `NPM_TOKEN` secret,
+and every release carries provenance.
+
+Trusted Publishing can only be configured on a package that already exists, so
+the **first** release needs a one-time manual bootstrap:
+
+1. Build and publish once from your machine to create the package:
+   ```sh
+   npm login
+   wasm-pack build bindings/wasm --target nodejs --release
+   cd bindings/wasm/pkg && npm publish --access public
+   ```
+2. On npmjs.com → the `shields-wasm` package → **Settings → Trusted Publisher**,
+   add a GitHub Actions publisher:
+   - Repository: `Jannchie/shields.rs`
+   - Workflow filename: `publish-wasm.yml`
+3. Done. Every subsequent `git tag vX.Y.Z && git push --tags` publishes
+   tokenlessly. The workflow stamps the npm version from the tag, so the crate's
+   `Cargo.toml` version does not need bumping per release.
