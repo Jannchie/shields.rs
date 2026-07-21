@@ -1,18 +1,15 @@
 name: Publish WASM to npm
 
-# Publishes shields-wasm on every release tag, matching release.yml.
-# Auth is npm Trusted Publishing (OIDC) — no NPM_TOKEN secret. See the one-time
-# bootstrap in bindings/wasm/README.md before the first tokenless run works.
+# Publishes shields-wasm on every release tag, matching release.yml. Auth is npm
+# Trusted Publishing (OIDC) — no NPM_TOKEN secret. See the one-time bootstrap in
+# bindings/wasm/README.md before the first tokenless run works.
 #
-# The publish step deliberately uses the npm CLI, not pnpm: pnpm's OIDC trusted-
-# publishing support is currently broken (404 on pnpm 11, pnpm#11513). This job
-# installs no project dependencies, so there is no pnpm disk saving to gain here
-# anyway. Use pnpm for local installs/scripts (see the README).
+# The publish step uses the npm CLI, not pnpm — see the README's Publishing
+# section for why.
 on:
   push:
     tags:
       - "v*"
-  workflow_dispatch: {}
 
 jobs:
   publish:
@@ -22,17 +19,6 @@ jobs:
       id-token: write # required for OIDC trusted publishing + provenance
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@v1
-        with:
-          toolchain: stable
-          targets: wasm32-unknown-unknown
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Install wasm-pack
-        uses: jetli/wasm-pack-action@v0.4.0
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -45,14 +31,35 @@ jobs:
       - name: Upgrade npm
         run: npm install -g npm@latest
 
+      # Fail in seconds — before the multi-minute wasm build — if this version is
+      # already on npm (a re-run of a tag, or a tag whose version was not bumped).
+      # Check the output, not the exit code: `npm view pkg@newversion` prints
+      # nothing and exits 0 for an unpublished version of an existing package.
+      - name: Skip if already published
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [ -n "$(npm view "shields-wasm@$version" version 2>/dev/null || true)" ]; then
+            echo "::error::shields-wasm@$version is already on npm — bump the version and re-tag."
+            exit 1
+          fi
+          echo "shields-wasm@$version not yet published — proceeding."
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+
       - name: Build package
         run: wasm-pack build bindings/wasm --target nodejs --release
 
-      # npm rejects republishing an existing version, and the crate's Cargo.toml
-      # version is not bumped per release. Stamp the package with the tag instead
-      # so the npm version always tracks the GitHub release.
-      - name: Sync version to tag
-        if: github.ref_type == 'tag'
+      # The crate version in Cargo.toml is only a local-dev default; the git tag
+      # is the source of truth for the published version, stamped here so the npm
+      # release always matches the tag regardless of the crate version.
+      - name: Stamp version from tag
         working-directory: bindings/wasm/pkg
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
