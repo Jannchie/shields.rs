@@ -447,12 +447,17 @@ fn colors_for_color_or(color: &str, fallback: &str) -> (&'static str, &'static s
     colors_for_background(&hex)
 }
 
-/// Capitalizes the first character and lowercases the rest (matches askama's `capitalize`).
+/// Uppercases the first character and leaves the rest alone, the way the social
+/// style upstream does.
+///
+/// Lowercasing the tail as well — which askama's `capitalize` filter does —
+/// would turn `AT&T` into `At&t` and `README` into `Readme`, and the narrower
+/// lowercase letters would shrink the badge below upstream's width.
 fn capitalize(s: &str) -> String {
     match s.chars().next() {
         Some(first) => {
             let mut out: String = first.to_uppercase().collect();
-            out.push_str(&s[first.len_utf8()..].to_lowercase());
+            out.push_str(&s[first.len_utf8()..]);
             out
         }
         None => String::new(),
@@ -1801,5 +1806,25 @@ mod tests {
             svg.contains(&format!("font-family=\"{FONT_FAMILY}\"")),
             "{svg}"
         );
+    }
+
+    #[test]
+    fn test_capitalize_only_touches_the_first_character() {
+        assert_eq!(capitalize(""), "");
+        assert_eq!(capitalize("abc DEF"), "Abc DEF");
+        assert_eq!(capitalize("aBcD"), "ABcD");
+        assert_eq!(capitalize("AT&T"), "AT&T");
+        assert_eq!(capitalize("README"), "README");
+        assert_eq!(capitalize("école TEST"), "École TEST");
+        assert_eq!(capitalize("1st"), "1st");
+    }
+
+    #[test]
+    fn test_social_label_keeps_its_case() {
+        // Only the social style capitalizes, and only the first character; the
+        // rest reaching the badge lowercased would also narrow it.
+        let svg = render(BadgeStyle::Social, "AT&T", "PASSING", None);
+        assert!(svg.contains("AT&amp;T"), "{svg}");
+        assert!(svg.contains("PASSING"), "{svg}");
     }
 }
