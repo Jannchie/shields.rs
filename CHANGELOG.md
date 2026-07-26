@@ -4,10 +4,10 @@ v1.5.0...v1.6.0
 
 ### :adhesive_bandage: Fixes
 
-- **badge**: XML-escape label and message instead of interpolating them raw. `AT&T` and `C++ <3` produced SVG no XML parser accepts, and a quote in the text could place an attribute on the root `<svg>`. Escaping runs after width measurement, so it belongs in the crate rather than in calling code; output stays byte-identical to img.shields.io - By [Jannchie](mailto:jannchie@gmail.com) in 55457a6
-- **badge**: drop `link` and `extra_link` carrying a `javascript:`, `vbscript:` or `data:` scheme, which escaping cannot neutralise. Relative paths, fragments and `mailto:` are unaffected - By [Jannchie](mailto:jannchie@gmail.com) in bc0dfe9
-- **social**: stop lowercasing the label after the first character, which rendered `AT&T` as `At&t` and made the badge 97px where upstream has 103px - By [Jannchie](mailto:jannchie@gmail.com) in 467c927
-- **package**: ship `askama.toml` in the published crate; without it askama silently skips escaping, so the crates.io build would have differed from this repo - By [Jannchie](mailto:jannchie@gmail.com) in 2361c40
+- **badge**: XML-escape label and message instead of interpolating them raw. `AT&T` and `C++ <3` produced SVG no XML parser accepts, and a quote in the text could place an attribute on the root `<svg>`. Escaping runs after width measurement, so it belongs in the crate rather than in calling code; output stays byte-identical to img.shields.io - By [Jannchie](mailto:jannchie@gmail.com) in 5202bdb
+- **badge**: drop `link` and `extra_link` carrying a `javascript:`, `vbscript:` or `data:` scheme, which escaping cannot neutralise. Relative paths, fragments and `mailto:` are unaffected - By [Jannchie](mailto:jannchie@gmail.com) in 0de7458
+- **social**: stop lowercasing the label after the first character, which rendered `AT&T` as `At&t` and made the badge 97px where upstream has 103px - By [Jannchie](mailto:jannchie@gmail.com) in 7a5fc47
+- **package**: ship `askama.toml` in the published crate; without it askama silently skips escaping, so the crates.io build would have differed from this repo - By [Jannchie](mailto:jannchie@gmail.com) in 8791df5
 
 Badge text containing `& < > " '` now renders as XML entities. Callers that escaped it themselves before passing it in must stop, or the entities will be double-escaped.
 
