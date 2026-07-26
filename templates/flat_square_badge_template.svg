@@ -3,7 +3,7 @@
 {% let has_one_link = !link.is_empty() && extra_link.is_empty() %}
 {% let has_two_link = !link.is_empty() && !extra_link.is_empty() %}
 {% let has_logo = !logo.is_empty() %}
-<svg xmlns="http://www.w3.org/2000/svg" width="{{ total_width }}" height="{{ badge_height }}"{% if !has_two_link %} role="img" aria-label="{{ accessible_text }}"{% endif %}>
+<svg xmlns="http://www.w3.org/2000/svg" width="{{ total_width|safe }}" height="{{ badge_height|safe }}"{% if !has_two_link %} role="img" aria-label="{{ accessible_text }}"{% endif %}>
     {% if !has_two_link %}
     <title>{{ accessible_text }}</title>
     {% endif %}
@@ -11,26 +11,26 @@
     <a target="_blank" href="{{ link }}">
     {% endif %}
     <g shape-rendering="crispEdges">
-        <rect width="{{ left_width }}" height="20" fill="{{ label_color }}" />
-        <rect x="{{ left_width }}" width="{{ right_width }}" height="20" fill="{{ message_color }}" />
+        <rect width="{{ left_width|safe }}" height="20" fill="{{ label_color }}" />
+        <rect x="{{ left_width|safe }}" width="{{ right_width|safe }}" height="20" fill="{{ message_color }}" />
     </g>
-    <g fill="#fff" text-anchor="middle" font-family="{{ font_family }}" text-rendering="geometricPrecision" font-size="{{ font_size_scaled }}">
+    <g fill="#fff" text-anchor="middle" font-family="{{ font_family }}" text-rendering="geometricPrecision" font-size="{{ font_size_scaled|safe }}">
 
 
         {% if has_logo %}
-        <image x="5" y="3" width="{{ logo_width }}" height="14" href="{{ logo }}" />
+        <image x="5" y="3" width="{{ logo_width|safe }}" height="14" href="{{ logo|safe }}" />
         {% endif %}
 
 
         {% if has_label %}
-        {% if has_two_link %}<a target="_blank" href="{{ link }}"> <rect width="{{ left_width }}" x="{{ rect_offset }}" height="20" fill="rgba(0,0,0,0)"/>{% endif %}
-        <text x="{{ label_x }}" y="140" textLength="{{ label_width_scaled }}" transform="scale(.1)"{% if label_text_color != "#fff" %} fill="{{ label_text_color }}"{% endif %}>{{ label }}</text>
+        {% if has_two_link %}<a target="_blank" href="{{ link }}"> <rect width="{{ left_width|safe }}" x="{{ rect_offset|safe }}" height="20" fill="rgba(0,0,0,0)"/>{% endif %}
+        <text x="{{ label_x|safe }}" y="140" textLength="{{ label_width_scaled|safe }}" transform="scale(.1)"{% if label_text_color != "#fff" %} fill="{{ label_text_color }}"{% endif %}>{{ label }}</text>
         {% if has_two_link %}</a>{% endif %}
         {% endif %}
 
         {% if has_message %}
-        {% if has_two_link %}<a target="_blank" href="{{ extra_link }}"> <rect width="{{ right_width }}" x="{{ message_link_x }}" height="20" fill="rgba(0,0,0,0)"/>{% endif %}
-        <text x="{{ message_x }}" y="140" textLength="{{ message_width_scaled }}" transform="scale(.1)"{% if message_text_color != "#fff" %} fill="{{ message_text_color }}"{% endif %}>{{ message }}</text>
+        {% if has_two_link %}<a target="_blank" href="{{ extra_link }}"> <rect width="{{ right_width|safe }}" x="{{ message_link_x|safe }}" height="20" fill="rgba(0,0,0,0)"/>{% endif %}
+        <text x="{{ message_x|safe }}" y="140" textLength="{{ message_width_scaled|safe }}" transform="scale(.1)"{% if message_text_color != "#fff" %} fill="{{ message_text_color }}"{% endif %}>{{ message }}</text>
         {% if has_two_link %}</a>{% endif %}
         {% endif %}
     </g>

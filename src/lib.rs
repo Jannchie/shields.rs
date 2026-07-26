@@ -56,6 +56,7 @@ use std::borrow::Cow;
 use std::str::FromStr;
 pub mod builder;
 pub mod measurer;
+mod xml_escape;
 use base64::Engine;
 use color_util::to_svg_color;
 use csscolorparser::Color;
@@ -70,7 +71,7 @@ mod font_tables {
 
 /// SVG rendering template context, fields must correspond to variables in badge_svg_template_askama.svg
 #[derive(Template)]
-#[template(path = "flat_badge_template.min.svg", escape = "none")]
+#[template(path = "flat_badge_template.min.svg", escape = "svg")]
 struct FlatBadgeSvgTemplateContext<'a> {
     logo_width: u32,
     total_width: i32,
@@ -106,7 +107,7 @@ struct FlatBadgeSvgTemplateContext<'a> {
 }
 /// flat-square SVG rendering template context
 #[derive(Template)]
-#[template(path = "flat_square_badge_template.min.svg", escape = "none")]
+#[template(path = "flat_square_badge_template.min.svg", escape = "svg")]
 struct FlatSquareBadgeSvgTemplateContext<'a> {
     logo_width: u32,
     total_width: i32,
@@ -138,7 +139,7 @@ struct FlatSquareBadgeSvgTemplateContext<'a> {
 }
 /// plastic SVG rendering template context
 #[derive(Template)]
-#[template(path = "plastic_badge_template.min.svg", escape = "none")]
+#[template(path = "plastic_badge_template.min.svg", escape = "svg")]
 struct PlasticBadgeSvgTemplateContext<'a> {
     logo_width: u32,
     total_width: i32,
@@ -171,7 +172,7 @@ struct PlasticBadgeSvgTemplateContext<'a> {
 
 /// social SVG rendering template context
 #[derive(Template)]
-#[template(path = "social_badge_template.min.svg", escape = "none")]
+#[template(path = "social_badge_template.min.svg", escape = "svg")]
 struct SocialBadgeSvgTemplateContext<'a> {
     logo_width: u32,
     total_width: i32,
@@ -198,7 +199,7 @@ struct SocialBadgeSvgTemplateContext<'a> {
 
 /// for-the-badge SVG rendering template context
 #[derive(Template)]
-#[template(path = "for_the_badge_template.min.svg", escape = "none")]
+#[template(path = "for_the_badge_template.min.svg", escape = "svg")]
 struct ForTheBadgeSvgTemplateContext<'a> {
     logo_width: u32,
     // SVG dimensions (upstream keeps fractional widths for this style)
@@ -779,8 +780,12 @@ impl<'a> RenderOptions<'a> {
     }
 }
 
-/// Strips characters outside `[A-Za-z0-9_-]` so an id suffix cannot break out
-/// of an attribute or inject markup (templates render unescaped).
+/// Strips characters outside `[A-Za-z0-9_-]`.
+///
+/// The suffix is not only interpolated into `id="…"` but also into the
+/// `url(#…)` references pointing at it, where escaping would break the link
+/// rather than protect it. Restricting the character set keeps both sides
+/// valid without relying on the escaper.
 fn sanitize_id_suffix(raw: &str) -> String {
     raw.chars()
         .filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
@@ -1656,5 +1661,81 @@ mod tests {
         );
 
         assert!(!svg.is_empty(), "Generated SVG should not be empty");
+    }
+
+    const ALL_STYLES: [BadgeStyle; 5] = [
+        BadgeStyle::Flat,
+        BadgeStyle::FlatSquare,
+        BadgeStyle::Plastic,
+        BadgeStyle::Social,
+        BadgeStyle::ForTheBadge,
+    ];
+
+    fn render(style: BadgeStyle, label: &str, message: &str, link: Option<&str>) -> String {
+        render_badge_svg(&BadgeParams {
+            style,
+            label: Some(label),
+            message: Some(message),
+            label_color: None,
+            message_color: None,
+            link,
+            extra_link: None,
+            logo: None,
+            logo_color: None,
+        })
+    }
+
+    #[test]
+    fn test_text_is_xml_escaped() {
+        // `&`, `<` and `"` are ordinary badge text ("AT&T", "C++ <3"); rendering
+        // them raw produced SVG that no XML parser would accept.
+        for style in ALL_STYLES {
+            // Social and for-the-badge recase the label, so match on the
+            // case-insensitive form; what matters is that `&` and `<` are entities.
+            let svg = render(style, "AT&T <3", "a\"b'c", None).to_lowercase();
+            assert!(svg.contains("at&amp;t &lt;3"), "{style:?}: {svg}");
+            assert!(svg.contains("a&quot;b&apos;c"), "{style:?}: {svg}");
+            // No raw special character survives into the markup.
+            assert!(!svg.contains("at&t"), "{style:?}: {svg}");
+            assert!(!svg.contains("<3"), "{style:?}: {svg}");
+        }
+    }
+
+    #[test]
+    fn test_text_cannot_break_out_of_attribute_or_element() {
+        for style in ALL_STYLES {
+            let svg = render(
+                style,
+                "\" onload=\"PWN",
+                "</text><script>x</script><text>",
+                None,
+            );
+            assert!(!svg.contains("onload=\"PWN\""), "{style:?}: {svg}");
+            assert!(!svg.contains("<script>"), "{style:?}: {svg}");
+        }
+    }
+
+    #[test]
+    fn test_escaping_preserves_logo_and_font() {
+        // The logo data URI is base64 (no escapable characters) and the font
+        // stack has none either; escaping must leave both byte-identical.
+        let svg = render_badge_svg(&BadgeParams {
+            style: BadgeStyle::Flat,
+            label: Some("a"),
+            message: Some("b"),
+            label_color: None,
+            message_color: None,
+            link: None,
+            extra_link: None,
+            logo: Some("rust"),
+            logo_color: None,
+        });
+        assert!(svg.contains("href=\"data:image/svg+xml;base64,"), "{svg}");
+        // Nothing was escaped at all: no entity appears anywhere in the output.
+        assert!(!svg.contains('&'), "logo/font must not be altered: {svg}");
+        assert!(
+            svg.contains(&format!("font-family=\"{FONT_FAMILY}\"")),
+            "{svg}"
+        );
     }
 }
