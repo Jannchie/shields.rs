@@ -1,0 +1,6 @@
+# The badge templates are SVG; askama has no built-in escaper for that
+# extension, so register ours. See src/xml_escape.rs for why it is not the
+# built-in HTML escaper.
+[[escaper]]
+path = "crate::xml_escape::Xml"
+extensions = ["svg"]

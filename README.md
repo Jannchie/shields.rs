@@ -22,13 +22,18 @@ locks, and needs no runtime besides the standard library (wasm32 builds work).
 
 | Library     | Language | Time per badge | Unit |
 | ----------- | -------- | -------------- | ---- |
-| shields     | Rust     | 0.85           | µs   |
+| shields     | Rust     | 0.94           | µs   |
 | badge-maker | Node.js  | 43.7           | µs   |
 
 Both render a badge with a Simple Icons logo; `cargo bench` reproduces the Rust
 side. badge-maker takes an already-encoded logo, so it is handed the same data
-URI shields resolves internally. Text-only badges render in 0.74 µs, and
+URI shields resolves internally. Text-only badges render in 0.87 µs, and
 rendering takes no locks, so it scales with cores.
+
+Label and message text is XML-escaped at render time, so `&`, `<` and quotes in
+badge text produce well-formed SVG and cannot escape their attribute or element.
+Escaping runs after text measurement, which is why it belongs here and not in
+calling code: pre-escaped input would be laid out five characters wide per `&`.
 
 ## Installation
 
