@@ -780,6 +780,36 @@ impl<'a> RenderOptions<'a> {
     }
 }
 
+/// Rejects `href` values whose scheme executes script when the badge is opened
+/// or embedded as a document.
+///
+/// XML escaping keeps a link inside its attribute, but `javascript:alert(1)`
+/// needs no special character to fire — the scheme itself is the payload. Only
+/// the script-bearing schemes are refused; everything else (absolute URLs,
+/// relative paths, fragments, `mailto:`, …) passes through untouched.
+fn is_safe_link(link: &str) -> bool {
+    // Browsers ignore leading whitespace and C0 controls before the scheme, and
+    // match it case-insensitively, so strip and fold before comparing.
+    let trimmed = link.trim_matches(|c: char| c.is_whitespace() || (c as u32) < 0x20);
+    let Some(colon) = trimmed.find(':') else {
+        // No scheme at all: a relative path or fragment, which cannot execute.
+        return true;
+    };
+    let scheme = &trimmed[..colon];
+    // A '/', '?' or '#' before the colon means it was never a scheme
+    // ("/a:b" is a path), so the value is relative and safe.
+    if scheme.contains(['/', '?', '#']) {
+        return true;
+    }
+    // Browsers also skip embedded tabs/newlines inside the scheme ("java\tscript:").
+    let scheme: String = scheme
+        .chars()
+        .filter(|c| !c.is_whitespace())
+        .map(|c| c.to_ascii_lowercase())
+        .collect();
+    !matches!(scheme.as_str(), "javascript" | "vbscript" | "data")
+}
+
 /// Strips characters outside `[A-Za-z0-9_-]`.
 ///
 /// The suffix is not only interpolated into `id="…"` but also into the
@@ -1016,6 +1046,9 @@ fn render_badge_svg_impl(
 
     let message_color = message_color.as_ref();
     let message = message.unwrap_or("");
+    // A rejected link is treated exactly like an absent one, so layout stays consistent.
+    let link = link.filter(|l| is_safe_link(l));
+    let extra_link = extra_link.filter(|l| is_safe_link(l));
     let link = link.unwrap_or("");
     let extra_link_not_empty_str = extra_link.is_none() || !extra_link.unwrap().is_empty();
     let extra_link = extra_link.unwrap_or("");
@@ -1713,6 +1746,37 @@ mod tests {
             assert!(!svg.contains("onload=\"PWN\""), "{style:?}: {svg}");
             assert!(!svg.contains("<script>"), "{style:?}: {svg}");
         }
+    }
+
+    #[test]
+    fn test_link_scheme_is_filtered() {
+        for link in [
+            "javascript:alert(1)",
+            "JaVaScRiPt:alert(1)",
+            "  \t javascript:alert(1)",
+            "java\tscript:alert(1)",
+            "vbscript:msgbox(1)",
+            "data:text/html,<script>x</script>",
+        ] {
+            assert!(!is_safe_link(link), "{link:?} should be rejected");
+            for style in ALL_STYLES {
+                let svg = render(style, "a", "b", Some(link));
+                assert!(!svg.contains("href=\""), "{style:?} {link:?}: {svg}");
+            }
+        }
+
+        // Ordinary links keep working, including relative ones with a colon.
+        for link in [
+            "https://example.com/x?a=1&b=2",
+            "/relative/path",
+            "#frag",
+            "mailto:a@b.com",
+            "/path:with:colon",
+        ] {
+            assert!(is_safe_link(link), "{link:?} should be allowed");
+        }
+        let svg = render(BadgeStyle::Flat, "a", "b", Some("https://e.com/?a=1&b=2"));
+        assert!(svg.contains("href=\"https://e.com/?a=1&amp;b=2\""), "{svg}");
     }
 
     #[test]
