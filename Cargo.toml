@@ -9,7 +9,10 @@ license = "MIT"
 repository = "https://github.com/Jannchie/shields.rs"
 keywords = ["badge", "SVG", "renderer", "font", "Rust"]
 categories = ["graphics", "rendering", "web-programming"]
-include = ["assets/**", "templates/**", "src/**", "build.rs", "Cargo.toml", "README.md"]
+# askama.toml registers the XML escaper the templates rely on. Askama silently
+# falls back to not escaping when it is missing, so leaving it out of the
+# package would ship an unescaped build that passes every check run here.
+include = ["assets/**", "templates/**", "src/**", "askama.toml", "build.rs", "Cargo.toml", "README.md"]
 homepage = "https://github.com/Jannchie/shields.rs"
 documentation = "https://docs.rs/shields"
 readme = "README.md"
