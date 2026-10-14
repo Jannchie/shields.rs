@@ -1,3 +1,27 @@
+## v1.7.0
+
+v1.6.0...v1.7.0
+
+### :zap: Performance
+
+- **badge**: render SVG directly instead of through askama templates, which formatted every interpolation through `core::fmt`. Text-only badges drop from 0.45-0.85 µs to 0.16-0.27 µs and logo badges from 0.8-1.3 µs to 0.27-0.39 µs; output verified byte-identical against the previous renderer over 3M random cases and against live img.shields.io - By [Jannchie](mailto:jannchie@gmail.com) in 80f925d
+- **wasm**: read `renderBadge` options through one type-checking JS call and a field bitmask instead of serde-wasm-bindgen, cutting a call from ~2.3 µs to ~1.0 µs - By [Jannchie](mailto:jannchie@gmail.com) in 7f5474e
+
+### :sparkles: Features
+
+- **badge**: add `render_badge_svg_into` for rendering into a reused buffer, and derive `Default`, `Clone` and `Copy` for `BadgeParams` so it can be built with `..Default::default()` - By [Jannchie](mailto:jannchie@gmail.com) in 6ca3811
+
+### :adhesive_bandage: Fixes
+
+- **badge**: `colors_for_background` no longer panics on a 6-byte multibyte string such as `"中文"` - By [Jannchie](mailto:jannchie@gmail.com) in 80f925d
+- **repo**: drop the stale simple-icons submodule entry that made `cargo package` fail - By [Jannchie](mailto:jannchie@gmail.com) in 74947bb
+
+### :memo: Documentation
+
+- **readme**: refresh benchmark numbers, measured on one machine for both sides - By [Jannchie](mailto:jannchie@gmail.com) in 398a09b
+
+`try_render_badge_svg` can no longer fail and always returns `Ok`. The published crate no longer ships `templates/`. In the WASM binding, invalid option types are rejected as before but with messages naming the field, and `renderBadge` is typed as taking `BadgeOptions`.
+
 ## v1.6.0
 
 v1.5.0...v1.6.0
