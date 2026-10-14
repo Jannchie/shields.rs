@@ -141,7 +141,7 @@ pub fn default_label_color() -> &'static str {
     "#555"
 }
 
-#[derive(Deserialize, Debug, Clone, Copy, Default)]
+#[derive(Deserialize, Debug, Clone, Default)]
 /// Parameters for generating a badge SVG.
 ///
 /// This struct is used to configure all aspects of a badge, including style, label, message, colors, links, and logo.
