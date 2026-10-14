@@ -106,21 +106,18 @@ export interface BadgeOptions {
 "#;
 
 fn parse_style(style: Option<&str>) -> Result<BadgeStyle, JsError> {
-    // The kebab-case spellings `BadgeStyle` deserializes from.
-    Ok(match style {
-        None => BadgeStyle::default(),
-        Some("flat") => BadgeStyle::Flat,
-        Some("flat-square") => BadgeStyle::FlatSquare,
-        Some("plastic") => BadgeStyle::Plastic,
-        Some("social") => BadgeStyle::Social,
-        Some("for-the-badge") => BadgeStyle::ForTheBadge,
-        Some(other) => {
-            return Err(JsError::new(&format!(
-                "invalid badge options: unknown style `{other}`, expected one of \
-                 `flat`, `flat-square`, `plastic`, `social`, `for-the-badge`"
-            )));
-        }
+    style.map_or(Ok(BadgeStyle::default()), |s| {
+        s.parse()
+            .map_err(|e| JsError::new(&format!("invalid badge options: {e}")))
     })
+}
+
+/// Performs the one-time initialization the first logo badge would otherwise
+/// pay for (building the Simple Icons lookup tables, a few milliseconds), so it
+/// does not land on the first request. Optional; calling it again is cheap.
+#[wasm_bindgen(js_name = warmUp)]
+pub fn warm_up() {
+    shields::warm_up();
 }
 
 /// Render a badge to an SVG string.
