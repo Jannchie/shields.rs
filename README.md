@@ -22,13 +22,16 @@ locks, and needs no runtime besides the standard library (wasm32 builds work).
 
 | Library     | Language | Time per badge | Unit |
 | ----------- | -------- | -------------- | ---- |
-| shields     | Rust     | 0.94           | µs   |
-| badge-maker | Node.js  | 43.7           | µs   |
+| shields     | Rust     | 0.52           | µs   |
+| badge-maker | Node.js  | 44.6           | µs   |
 
-Both render a badge with a Simple Icons logo; `cargo bench` reproduces the Rust
-side. badge-maker takes an already-encoded logo, so it is handed the same data
-URI shields resolves internally. Text-only badges render in 0.87 µs, and
-rendering takes no locks, so it scales with cores.
+Both render a badge with a Simple Icons logo and two links, on the same machine
+(i9-12900K, pinned to one core); `cargo bench` reproduces the Rust side
+(`params_badge_svg`). badge-maker takes an already-encoded logo, so it is handed
+the same data URI shields resolves internally. Text-only badges render in
+0.17–0.35 µs depending on style, and rendering takes no locks, so it scales with
+cores. Servers rendering in bulk can reuse one buffer through
+`render_badge_svg_into` and skip the per-badge allocation.
 
 Label and message text is XML-escaped at render time, so `&`, `<` and quotes in
 badge text produce well-formed SVG and cannot escape their attribute or element.
