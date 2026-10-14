@@ -17,6 +17,13 @@ readme = "README.md"
 [lib]
 path = "src/lib.rs"
 
+# `BadgeParams` is `Copy` since 1.8.0. cargo-semver-checks counts gaining Copy
+# as major, because non-move closures then capture by reference instead of
+# moving (rust-lang/rust#100905). For a struct of borrowed `&str`s that is
+# accepted as a minor change.
+[package.metadata.cargo-semver-checks.lints]
+copy_impl_added = { level = "deny", required-update = "minor" }
+
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.141"

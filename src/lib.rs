@@ -131,6 +131,72 @@ pub enum BadgeStyle {
     ForTheBadge,
 }
 
+impl BadgeStyle {
+    /// Every style, in declaration order.
+    pub const ALL: [BadgeStyle; 5] = [
+        BadgeStyle::Flat,
+        BadgeStyle::FlatSquare,
+        BadgeStyle::Plastic,
+        BadgeStyle::Social,
+        BadgeStyle::ForTheBadge,
+    ];
+
+    /// The style's shields.io name (`"flat"`, `"flat-square"`, `"plastic"`,
+    /// `"social"`, `"for-the-badge"`), as used in its `?style=` query parameter
+    /// and accepted by [`FromStr`](std::str::FromStr) and serde.
+    ///
+    /// ```rust
+    /// use shields::BadgeStyle;
+    /// assert_eq!(BadgeStyle::FlatSquare.as_str(), "flat-square");
+    /// assert_eq!("flat-square".parse(), Ok(BadgeStyle::FlatSquare));
+    /// ```
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            BadgeStyle::Flat => "flat",
+            BadgeStyle::FlatSquare => "flat-square",
+            BadgeStyle::Plastic => "plastic",
+            BadgeStyle::Social => "social",
+            BadgeStyle::ForTheBadge => "for-the-badge",
+        }
+    }
+}
+
+impl std::fmt::Display for BadgeStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for BadgeStyle {
+    type Err = ParseBadgeStyleError;
+
+    /// Parses a shields.io style name (see [`BadgeStyle::as_str`]). Matching is
+    /// exact, like serde's: no trimming or case folding.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        BadgeStyle::ALL
+            .into_iter()
+            .find(|style| style.as_str() == s)
+            .ok_or_else(|| ParseBadgeStyleError(s.to_owned()))
+    }
+}
+
+/// Error returned when parsing an unknown [`BadgeStyle`] name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParseBadgeStyleError(String);
+
+impl std::fmt::Display for ParseBadgeStyleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "unknown style `{}`, expected one of ", self.0)?;
+        for (i, style) in BadgeStyle::ALL.iter().enumerate() {
+            let sep = if i == 0 { "" } else { ", " };
+            write!(f, "{sep}`{style}`")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ParseBadgeStyleError {}
+
 /// Returns the default message color hex string (`#007ec6`).
 pub fn default_message_color() -> &'static str {
     "#007ec6"
@@ -141,7 +207,7 @@ pub fn default_label_color() -> &'static str {
     "#555"
 }
 
-#[derive(Deserialize, Debug, Clone, Default)]
+#[derive(Deserialize, Debug, Clone, Copy, Default)]
 /// Parameters for generating a badge SVG.
 ///
 /// This struct is used to configure all aspects of a badge, including style, label, message, colors, links, and logo.
@@ -194,6 +260,34 @@ pub struct BadgeParams<'a> {
     pub logo: Option<&'a str>,
     /// Optional logo color, defaults to `#000000` for social badges, otherwise `whitesmoke`.
     pub logo_color: Option<&'a str>,
+}
+
+impl<'a> BadgeParams<'a> {
+    /// A flat badge with `label` and `message` and every other field at its
+    /// default. Adjust the rest with struct update syntax:
+    ///
+    /// ```rust
+    /// use shields::{BadgeParams, BadgeStyle, render_badge_svg};
+    /// let params = BadgeParams {
+    ///     style: BadgeStyle::Plastic,
+    ///     message_color: Some("brightgreen"),
+    ///     ..BadgeParams::new("build", "passing")
+    /// };
+    /// assert!(render_badge_svg(&params).contains("passing"));
+    /// ```
+    pub const fn new(label: &'a str, message: &'a str) -> Self {
+        BadgeParams {
+            style: BadgeStyle::Flat,
+            label: Some(label),
+            message: Some(message),
+            label_color: None,
+            message_color: None,
+            link: None,
+            extra_link: None,
+            logo: None,
+            logo_color: None,
+        }
+    }
 }
 
 /// Owned variant of [`BadgeParams`], for callers that cannot borrow —
@@ -370,6 +464,25 @@ pub fn render_badge_svg_into(params: &BadgeParams, options: &RenderOptions, out:
     render::render(params, options, out);
 }
 
+/// Performs the one-time initialization the first logo badge would otherwise
+/// pay for, so it does not land on the first request.
+///
+/// Resolving the first named logo builds the Simple Icons lookup tables, which
+/// takes a few milliseconds; later lookups take microseconds. Call this once at
+/// startup, from any thread. It does nothing without the `simple-icons` feature,
+/// and calling it again is cheap.
+///
+/// ```rust
+/// shields::warm_up();
+/// ```
+pub fn warm_up() {
+    #[cfg(feature = "simple-icons")]
+    {
+        // Any lookup builds the shared slug regexes and the icon map.
+        let _ = simpleicons::Icon::get_svg("rust");
+    }
+}
+
 /// Fallible variant of [`render_badge_svg`].
 ///
 /// Rendering writes straight into a `String` and cannot fail, so this always
@@ -409,6 +522,45 @@ mod tests {
     use super::*;
     use crate::render::{FONT_FAMILY, is_safe_link};
     use base64::Engine;
+
+    #[test]
+    fn badge_style_names_round_trip_and_match_serde() {
+        for style in BadgeStyle::ALL {
+            let name = style.as_str();
+            assert_eq!(name.parse::<BadgeStyle>(), Ok(style));
+            assert_eq!(style.to_string(), name);
+            let from_serde: BadgeStyle = serde_json::from_str(&format!("\"{name}\"")).unwrap();
+            assert_eq!(from_serde, style);
+        }
+        let err = "Flat".parse::<BadgeStyle>().unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "unknown style `Flat`, expected one of `flat`, `flat-square`, `plastic`, `social`, `for-the-badge`"
+        );
+    }
+
+    #[test]
+    fn badge_params_new_sets_only_label_and_message() {
+        let params = BadgeParams::new("build", "passing");
+        let literal = BadgeParams {
+            label: Some("build"),
+            message: Some("passing"),
+            ..Default::default()
+        };
+        assert_eq!(render_badge_svg(&params), render_badge_svg(&literal));
+    }
+
+    #[test]
+    fn warm_up_does_not_change_output() {
+        let params = BadgeParams {
+            logo: Some("rust"),
+            ..BadgeParams::new("build", "passing")
+        };
+        let before = render_badge_svg(&params);
+        warm_up();
+        warm_up();
+        assert_eq!(render_badge_svg(&params), before);
+    }
 
     #[test]
     fn test_svg() {
