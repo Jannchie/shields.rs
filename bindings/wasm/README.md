@@ -48,8 +48,10 @@ const svg = renderBadge({
 });
 ```
 
-All fields are optional. Unknown keys are ignored (serde-wasm-bindgen does not
-enforce `deny_unknown_fields`).
+All fields are optional; `null` counts as absent and unknown keys are ignored.
+A field of the wrong type (a number for `label`, a fraction for `logoWidth`)
+throws an `Error` naming the field. TypeScript users get a `BadgeOptions`
+interface for the argument.
 
 ## Benchmark
 
@@ -62,18 +64,18 @@ pnpm install         # dev dep: badge-maker
 pnpm bench
 ```
 
-Representative run (Node v22, 200k iterations/cell):
+Representative run (Node v24, i9-12900K, 200k iterations/cell):
 
 | workload      | shields-wasm | badge-maker | speedup |
 |---------------|--------------|-------------|---------|
-| flat          | ~2.6 µs      | ~24 µs      | ~9×     |
-| for-the-badge | ~2.3 µs      | ~15 µs      | ~6×     |
-| plastic       | ~2.5 µs      | ~27 µs      | ~11×    |
-| social        | ~2.4 µs      | ~31 µs      | ~13×    |
+| flat          | ~1.2 µs      | ~23 µs      | ~19×    |
+| for-the-badge | ~0.9 µs      | ~14 µs      | ~15×    |
+| plastic       | ~1.1 µs      | ~26 µs      | ~23×    |
+| social        | ~1.0 µs      | ~30 µs      | ~30×    |
 
-The per-call cost includes JS↔WASM marshaling (deserializing the options object
-and copying the SVG string out), so native Rust is faster still; this is the
-number a Node caller actually sees.
+The per-call cost includes JS↔WASM marshaling (reading the options object and
+copying the SVG string out), so native Rust is faster still; this is the number
+a Node caller actually sees.
 
 ## Publishing
 
