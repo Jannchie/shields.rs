@@ -40,6 +40,9 @@ pub struct CharWidthMeasurer {
     ranges: Cow<'static, [(u32, u32, f64)]>,
     /// Direct lookup fast path for ASCII code points; NaN marks "not in table"
     ascii: [f64; 128],
+    /// What [`width_of`](Self::width_of) adds per ASCII code point when guessing:
+    /// 0 for control characters, `em_width` for code points not in the table.
+    ascii_guess: [f64; 128],
     /// Width of character 'm'
     pub em_width: f64,
 }
@@ -52,7 +55,7 @@ impl CharWidthMeasurer {
     ///
     /// # Returns
     /// `true` if control character, else `false`.
-    pub fn is_control_char(char_code: u32) -> bool {
+    pub const fn is_control_char(char_code: u32) -> bool {
         char_code <= 31 || char_code == 127
     }
 
@@ -60,6 +63,7 @@ impl CharWidthMeasurer {
         let mut measurer = CharWidthMeasurer {
             ranges,
             ascii: [f64::NAN; 128],
+            ascii_guess: [0.0; 128],
             em_width: 0.0,
         };
         for code in 0..128u32 {
@@ -67,8 +71,42 @@ impl CharWidthMeasurer {
                 measurer.ascii[code as usize] = width;
             }
         }
-        measurer.em_width = measurer.width_of("m", true);
+        // Measured while `em_width` is still 0, so a table without 'm' guesses 0.
+        let em_width = measurer.ascii[b'm' as usize];
+        measurer.em_width = if em_width.is_nan() { 0.0 } else { em_width };
+        measurer.ascii_guess = Self::guess_table(&measurer.ascii, measurer.em_width);
         measurer
+    }
+
+    const fn guess_table(ascii: &[f64; 128], em_width: f64) -> [f64; 128] {
+        let mut guess = [0.0; 128];
+        let mut code = 0;
+        while code < 128 {
+            guess[code] = if Self::is_control_char(code as u32) {
+                0.0
+            } else if ascii[code].is_nan() {
+                em_width
+            } else {
+                ascii[code]
+            };
+            code += 1;
+        }
+        guess
+    }
+
+    /// Assembles a measurer from tables `build.rs` precomputed, so the built-in
+    /// fonts are plain `static`s with no lazy initialization.
+    pub(crate) const fn from_precomputed(
+        ranges: &'static [(u32, u32, f64)],
+        ascii: [f64; 128],
+        em_width: f64,
+    ) -> Self {
+        CharWidthMeasurer {
+            ranges: Cow::Borrowed(ranges),
+            ascii_guess: Self::guess_table(&ascii, em_width),
+            ascii,
+            em_width,
+        }
     }
 
     /// Binary search over the sorted range table.
@@ -227,18 +265,31 @@ impl CharWidthMeasurer {
     /// assert_eq!(width, 30.0);
     /// ```
     pub fn width_of(&self, text: &str, guess: bool) -> f64 {
+        if !guess {
+            return self.width_of_strict(text);
+        }
+        let bytes = text.as_bytes();
+        let mut total = 0.0;
+        let mut i = 0;
+        while let Some(&byte) = bytes.get(i) {
+            if byte.is_ascii() {
+                total += self.ascii_guess[byte as usize];
+                i += 1;
+            } else if let Some(ch) = text[i..].chars().next() {
+                total += self.lookup_range(ch as u32).unwrap_or(self.em_width);
+                i += ch.len_utf8();
+            }
+        }
+        total
+    }
+
+    fn width_of_strict(&self, text: &str) -> f64 {
         let mut total = 0.0;
         for ch in text.chars() {
             let code = ch as u32;
             match self.width_of_char_code(code) {
                 Some(width) => total += width,
-                None => {
-                    if guess {
-                        total += self.em_width;
-                    } else {
-                        panic!("No width available for character code {code} ({ch:?})");
-                    }
-                }
+                None => panic!("No width available for character code {code} ({ch:?})"),
             }
         }
         total

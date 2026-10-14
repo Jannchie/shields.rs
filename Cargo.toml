@@ -9,10 +9,7 @@ license = "MIT"
 repository = "https://github.com/Jannchie/shields.rs"
 keywords = ["badge", "SVG", "renderer", "font", "Rust"]
 categories = ["graphics", "rendering", "web-programming"]
-# askama.toml registers the XML escaper the templates rely on. Askama silently
-# falls back to not escaping when it is missing, so leaving it out of the
-# package would ship an unescaped build that passes every check run here.
-include = ["assets/**", "templates/**", "src/**", "askama.toml", "build.rs", "Cargo.toml", "README.md"]
+include = ["assets/fonts/**", "src/**", "build.rs", "Cargo.toml", "README.md"]
 homepage = "https://github.com/Jannchie/shields.rs"
 documentation = "https://docs.rs/shields"
 readme = "README.md"
@@ -23,8 +20,6 @@ path = "src/lib.rs"
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.141"
-
-askama = "0.16.0"
 base64 = "0.22.1"
 simpleicons = { version = "0.3.0", optional = true }
 csscolorparser = "0.8.3"
