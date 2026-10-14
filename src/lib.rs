@@ -141,7 +141,7 @@ pub fn default_label_color() -> &'static str {
     "#555"
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone, Copy, Default)]
 /// Parameters for generating a badge SVG.
 ///
 /// This struct is used to configure all aspects of a badge, including style, label, message, colors, links, and logo.
@@ -347,6 +347,27 @@ pub fn render_badge_svg_with(params: &BadgeParams, options: &RenderOptions) -> S
     let mut svg = String::new();
     render::render(params, options, &mut svg);
     svg
+}
+
+/// Appends the badge SVG to `out` instead of returning a new `String`.
+///
+/// Rendering into a buffer the caller reuses (clearing it between badges)
+/// saves the one allocation a render otherwise makes, which matters when
+/// rendering at high volume.
+///
+/// ## Example
+/// ```rust
+/// use shields::{BadgeParams, RenderOptions, render_badge_svg_into};
+/// let mut buf = String::new();
+/// for message in ["passing", "failing"] {
+///     buf.clear();
+///     let params = BadgeParams { label: Some("build"), message: Some(message), ..Default::default() };
+///     render_badge_svg_into(&params, &RenderOptions::default(), &mut buf);
+///     assert!(buf.contains(message));
+/// }
+/// ```
+pub fn render_badge_svg_into(params: &BadgeParams, options: &RenderOptions, out: &mut String) {
+    render::render(params, options, out);
 }
 
 /// Fallible variant of [`render_badge_svg`].
