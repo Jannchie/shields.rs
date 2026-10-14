@@ -1,6 +1,6 @@
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use rand::{RngExt, distr::Alphanumeric};
-use shields::{BadgeParams, BadgeStyle, render_badge_svg};
+use shields::{BadgeParams, BadgeStyle, RenderOptions, render_badge_svg, render_badge_svg_into};
 use std::hint::black_box;
 
 const STYLES: [BadgeStyle; 4] = [
@@ -74,5 +74,60 @@ fn bench_builder_badge(c: &mut Criterion) {
     });
 }
 
-criterion_group!(benches, bench_params_badge, bench_builder_badge);
+// C. Every style with and without a logo, so a change to one style's markup
+// shows up on its own instead of averaged into a random mix.
+fn bench_styles(c: &mut Criterion) {
+    let mut group = c.benchmark_group("style");
+    let styles = [
+        ("flat", BadgeStyle::Flat),
+        ("flat-square", BadgeStyle::FlatSquare),
+        ("plastic", BadgeStyle::Plastic),
+        ("social", BadgeStyle::Social),
+        ("for-the-badge", BadgeStyle::ForTheBadge),
+    ];
+    for (name, style) in styles {
+        for logo in [None, Some("rust")] {
+            let params = BadgeParams {
+                style,
+                label: Some("build"),
+                message: Some("passing"),
+                message_color: Some("brightgreen"),
+                logo,
+                ..Default::default()
+            };
+            let variant = if logo.is_some() { "logo" } else { "text" };
+            group.bench_with_input(BenchmarkId::new(name, variant), &params, |b, params| {
+                b.iter(|| black_box(render_badge_svg(black_box(params))));
+            });
+        }
+    }
+    group.finish();
+}
+
+// D. Rendering into a reused buffer, which skips the per-badge allocation.
+fn bench_render_into(c: &mut Criterion) {
+    let params = BadgeParams {
+        label: Some("build"),
+        message: Some("passing"),
+        message_color: Some("brightgreen"),
+        ..Default::default()
+    };
+    let options = RenderOptions::default();
+    let mut buf = String::new();
+    c.bench_function("render_into_reused_buffer", |b| {
+        b.iter(|| {
+            buf.clear();
+            render_badge_svg_into(black_box(&params), &options, &mut buf);
+            black_box(&buf);
+        });
+    });
+}
+
+criterion_group!(
+    benches,
+    bench_params_badge,
+    bench_builder_badge,
+    bench_styles,
+    bench_render_into
+);
 criterion_main!(benches);
