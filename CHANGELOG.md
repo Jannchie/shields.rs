@@ -1,3 +1,20 @@
+## v1.8.0
+
+v1.7.1...v1.8.0
+
+### :sparkles: Features
+
+- **badge**: `BadgeStyle` implements `FromStr` and `Display` and gains `as_str()` and `ALL`, using the shields.io names serde already accepts (`"flat-square"`, `"for-the-badge"`, ...); unknown names fail with `ParseBadgeStyleError` - By [Jannchie](mailto:jannchie@gmail.com) in 00c612a
+- **badge**: add `const fn BadgeParams::new(label, message)` for use with struct update syntax, and derive `Copy` for `BadgeParams` - By [Jannchie](mailto:jannchie@gmail.com) in 00c612a
+- **badge**: add `warm_up()`, which builds the Simple Icons lookup tables ahead of time so the first logo badge does not pay for them (a few ms natively, ~12 ms on Node) - By [Jannchie](mailto:jannchie@gmail.com) in 00c612a
+- **wasm**: export `warmUp()`; `renderBadge` parses `style` through `BadgeStyle::from_str`, with the same error message as before - By [Jannchie](mailto:jannchie@gmail.com) in a37dfb2
+
+### :memo: Documentation
+
+- **readme**: document `BadgeParams::new`, style parsing and warm-up - By [Jannchie](mailto:jannchie@gmail.com) in fdd103b
+
+cargo-semver-checks counts gaining `Copy` as a major change, because non-`move` closures then capture the value by reference (rust-lang/rust#100905). For `BadgeParams`, a struct of borrowed `&str`s, this is accepted as minor and configured in `Cargo.toml`.
+
 ## v1.7.1
 
 v1.7.0...v1.7.1
