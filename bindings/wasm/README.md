@@ -53,6 +53,9 @@ A field of the wrong type (a number for `label`, a fraction for `logoWidth`)
 throws an `Error` naming the field. TypeScript users get a `BadgeOptions`
 interface for the argument.
 
+The first badge with a named logo builds the Simple Icons lookup tables (~12 ms
+on Node). Call `warmUp()` once at startup to move that cost off the first request.
+
 ## Benchmark
 
 `bench.mjs` compares throughput against [`badge-maker`](https://www.npmjs.com/package/badge-maker),

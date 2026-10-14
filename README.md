@@ -121,7 +121,18 @@ let svg = render_badge_svg(&BadgeParams {
     logo: None,
     logo_color: None,
 });
+
+// Or start from label and message and override the rest:
+let svg = render_badge_svg(&BadgeParams {
+    style: "for-the-badge".parse().unwrap(), // BadgeStyle: FromStr + Display
+    message_color: Some("brightgreen"),
+    ..BadgeParams::new("build", "passing")
+});
 ```
+
+The first badge with a named logo builds the Simple Icons lookup tables, which
+takes a few milliseconds. Call `shields::warm_up()` once at startup so that cost
+does not land on the first request.
 
 ## Documentation
 
