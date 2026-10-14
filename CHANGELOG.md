@@ -1,3 +1,13 @@
+## v1.7.1
+
+v1.7.0...v1.7.1
+
+### :adhesive_bandage: Fixes
+
+- **badge**: drop the `Copy` derive that v1.7.0 added to `BadgeParams`; cargo-semver-checks counts it as a major change, since it could never be removed again. `Default` and `Clone` remain - By [Jannchie](mailto:jannchie@gmail.com) in 47e626d
+
+v1.7.0 was tagged and published to npm but not to crates.io; v1.7.1 is the first crates.io release with the v1.7.0 changes.
+
 ## v1.7.0
 
 v1.6.0...v1.7.0
